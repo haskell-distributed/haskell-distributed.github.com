@@ -221,7 +221,7 @@ Processes can send data if the type implements the `Serializable` typeclass,
 which is done indirectly by implementing `Binary` and deriving `Typeable`.
 Implementations are already provided for primitives and some commonly used
 data structures. As programmers, we see the messages in nice high-level form
-(e.g., `Int`, `String`, `Ping`, `Pong`, etc), however these data have to be
+(e.g., `Int`, `String`, `Ping`, `Pong`, etc), however the data has to be
 encoded in order to be sent over a communications channel.
 
 Not all types are `Serializable`, for example concurrency primitives such as
