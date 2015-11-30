@@ -26,18 +26,23 @@ searches for a list of peer nodes, and sends a message to a registered (named) p
 {% highlight haskell %}
 import System.Environment (getArgs)
 import Control.Distributed.Process
-import Control.Distributed.Process.Node (initRemoteTable)
-import Control.Distributed.Process.Backend.SimpleLocalnet
+import Control.Distributed.Process.Node (initRemoteTable, runProcess, LocalNode)
+import Control.Distributed.Process.Backend.SimpleLocalnet (initializeBackend, newLocalNode, findPeers, Backend)
 import Control.Monad (forever, mapM_)
 
+main :: IO()
 main = do
   [host, port] <- getArgs
-  
   backend <- initializeBackend host port initRemoteTable
   node    <- newLocalNode backend
-  runProcess node $ forever $ do
-    findPeers backend >>= mapM_ $ \peer -> nsendRemote peer "echo-server" "hello!"
+  peers <- findPeers backend 1000000
+  runProcess node (messagePeers peers)
 
+messagePeers :: [NodeId] -> Process()
+messagePeers = mapM_ (\peer -> sendMessage peer "hello!")
+
+sendMessage :: NodeId -> String -> Process()
+sendMessage peer = nsendRemote peer "echo-server"
 {% endhighlight %}
 
 Clearly the program isn't very useful, but it illustrates the two key concepts that
