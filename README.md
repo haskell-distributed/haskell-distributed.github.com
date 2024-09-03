@@ -1,4 +1,4 @@
-haskell-distributed.github.com (archive)
-========================================
+haskell-distributed.github.com
+==============================
 
-## :warning: This website is now deployed from here: https://github.com/haskell-distributed/distributed-process :warning:
+haskell-distributed website
