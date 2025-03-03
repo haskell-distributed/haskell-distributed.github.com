@@ -542,14 +542,14 @@ init :: Int -> ([NodeId] -> Process ()) -> IO ()
 
 It takes a number of (OS) processes to fork and the initial (CH) process gets passes a corresponding number of remote `NodeId`s.
 
-For the backend that deals with VMs in the cloud, it might have two initialisation functions, one for the master controller node and one for slave nodes.
+For the backend that deals with VMs in the cloud, it might have two initialisation functions, one for the controller node and one for worker nodes.
 
 {% highlight haskell %}
-initMaster :: MasterConfig -> Process () -> IO ()
-initSlave  :: SlaveConfig -> IO ()
+initController :: ControllerConfig -> Process () -> IO ()
+initWorker  :: WorkerConfig -> IO ()
 {% endhighlight %}
 
-Additionally it might have actions for firing up new VMs and running the program binary in slave mode on that VM:
+Additionally it might have actions for firing up new VMs and running the program binary in worker mode on that VM:
 
 {% highlight haskell %}
 spawnVM    :: VmAccount -> IO VM

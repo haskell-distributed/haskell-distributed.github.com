@@ -1,7 +1,7 @@
 ---
 layout: tutorial
 categories: tutorial
-sections: ['Overview', 'A Simple Example', 'Master Slave Configurations', 'Other Topologies and Backends']
+sections: ['Overview', 'A Simple Example', 'Controller Worker Configurations', 'Other Topologies and Backends']
 title: 2. Managing Topologies
 ---
 
@@ -10,7 +10,7 @@ title: 2. Managing Topologies
 In Cloud Haskell, the system topology is determined by your choice of _Cloud Haskell Backend_.
 The basic topology that Cloud Haskell currently ships with is determined by the
 [`simplelocalnet`][1] backend, which provides for a fully connected grid of nodes with optional
-master-slave configuration. This backend allows nodes to discover one another using UDP multicast.
+controller-worker configuration. This backend allows nodes to discover one another using UDP multicast.
 It is a zero-configuration backend designed to get you going with Cloud Haskell quickly without
 imposing any particular structure on your application.
 
@@ -46,11 +46,11 @@ connected to an underlying communications infrastructure and secondly, that we c
 evaluate `findPeers` at any time to obtain the set of other nodes that have broadcast
 their presence.
 
-### Master Slave Configurations
+### Controller Worker Configurations
 
-Here we simply rehash the master/slave example from the `simplelocalnet` documentation.
-With the same imports as the example above, we add a no-op slave and a master that
-takes a list of its (known) slaves, which it prints out before terminating them all.
+Here we simply rehash the controller/worker example from the `simplelocalnet` documentation.
+With the same imports as the example above, we add a no-op worker and a controller that
+takes a list of its (known) workers, which it prints out before terminating them all.
 
 {% highlight haskell %}
 main :: IO ()
@@ -58,24 +58,24 @@ main = do
   args <- getArgs
 
   case args of
-    ["master", host, port] -> do
+    ["controller", host, port] -> do
       backend <- initializeBackend host port initRemoteTable
-      startMaster backend (master backend)
-    ["slave", host, port] -> do
+      startController backend (controller backend)
+    ["worker", host, port] -> do
       backend <- initializeBackend host port initRemoteTable
-      startSlave backend
+      startWorker backend
 
 {% endhighlight %}
 
-And the master node is defined thus:
+And the controller node is defined thus:
 
 {% highlight haskell %}
-master :: Backend -> [NodeId] -> Process ()
-master backend slaves = do
-  -- Do something interesting with the slaves
-  liftIO . putStrLn $ "Slaves: " ++ show slaves
-  -- Terminate the slaves when the master terminates (this is optional)
-  terminateAllSlaves backend
+controller :: Backend -> [NodeId] -> Process ()
+controller backend workers = do
+  -- Do something interesting with the workers
+  liftIO . putStrLn $ "Workers: " ++ show workers
+  -- Terminate the workers when the controller terminates (this is optional)
+  terminateAllWorkers backend
 {% endhighlight %}
 
 ### Other Topologies and Backends
