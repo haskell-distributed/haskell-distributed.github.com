@@ -60,10 +60,10 @@ main = do
   case args of
     ["controller", host, port] -> do
       backend <- initializeBackend host port initRemoteTable
-      startController backend (controller backend)
+      startMaster backend (controller backend)
     ["worker", host, port] -> do
       backend <- initializeBackend host port initRemoteTable
-      startWorker backend
+      startSlave backend
 
 {% endhighlight %}
 
@@ -75,7 +75,7 @@ controller backend workers = do
   -- Do something interesting with the workers
   liftIO . putStrLn $ "Workers: " ++ show workers
   -- Terminate the workers when the controller terminates (this is optional)
-  terminateAllWorkers backend
+  terminateAllSlaves backend
 {% endhighlight %}
 
 ### Other Topologies and Backends
