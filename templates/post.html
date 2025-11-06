@@ -1,0 +1,35 @@
+<section class="section">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <h1 class="title is-1">$title$</h1>
+          <p class="subtitle is-6 has-text-grey">
+            <time datetime="$date$">$date$</time>
+            $if(tags)$
+            <span class="tags ml-3">
+              $for(tags)$
+              <span class="tag is-primary is-light">$tags$</span>
+              $endfor$
+            </span>
+            $endif$
+          </p>
+
+          $body$
+
+          <hr>
+          <nav class="level">
+            <div class="level-left">
+              <a href="/blog.html" class="button is-light">
+                <span class="icon">
+                  <i class="fas fa-arrow-left"></i>
+                </span>
+                <span>Back to Blog</span>
+              </a>
+            </div>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

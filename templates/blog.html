@@ -1,0 +1,45 @@
+<section class="hero is-primary">
+  <div class="hero-body">
+    <div class="container">
+      <h1 class="title is-1">Blog</h1>
+      <p class="subtitle is-4">Updates and announcements from the Cloud Haskell team</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        $if(posts)$
+        <div class="content">
+          $for(posts)$
+          <article class="box">
+            <h2 class="title is-3">
+              <a href="$url$">$title$</a>
+            </h2>
+            <p class="subtitle is-6 has-text-grey">
+              <time datetime="$date$">$date$</time>
+            </p>
+            <div class="buttons">
+              <a href="$url$" class="button is-primary is-light">
+                Read More
+                <span class="icon is-small ml-2">
+                  <i class="fas fa-arrow-right"></i>
+                </span>
+              </a>
+            </div>
+          </article>
+          $endfor$
+        </div>
+        $else$
+        <article class="message is-info">
+          <div class="message-body">
+            No posts yet.
+          </div>
+        </article>
+        $endif$
+      </div>
+    </div>
+  </div>
+</section>

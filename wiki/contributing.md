@@ -69,7 +69,7 @@ make your changes in a local branch. Before submitting your pull request, fetch
 and rebase any changes to the upstream source branch and merge these into your
 local branch. For example:
 
-{% highlight bash %}
+```bash
 ## on your local repository, create a branch to work in
 
 $ git checkout -b bugfix-issue123
@@ -89,7 +89,7 @@ $ git merge master
 
 ## make sure you resolve any merge conflicts
 ## and commit before sending a pull request!
-{% endhighlight %}
+```
 
 ### __3. Follow the patch submission *rules of thumb*__
 
@@ -188,7 +188,7 @@ quite frequently and it is pain keeping the indentation consistent.
 The one exception to this is probably imports/exports, which we *are* a
 bit finicky about: 
 
-{% highlight haskell %}
+```haskell
 import qualified Foo.Bar.Baz as Bz
 import Data.Binary
   ( Binary (..),
@@ -197,7 +197,7 @@ import Data.Binary
   )
 import Data.Blah
 import Data.Boom (Typeable)
-{% endhighlight %}
+```
 
 We generally don't care *that much* about alignment for other things,
 but as always, try to follow the convention in the file you're editing
@@ -216,14 +216,14 @@ Comment every top level function (particularly exported functions),
 and provide a type signature; use Haddock syntax in the comments.
 Comment every exported data type. Function example:
 
-{% highlight haskell %}
+```haskell
 -- | Send a message on a socket. The socket must be in a connected
 -- state.  Returns the number of bytes sent. Applications are
 -- responsible for ensuring that all data has been sent.
 send :: Socket      -- ^ Connected socket
      -> ByteString  -- ^ Data to send
      -> IO Int      -- ^ Bytes sent
-{% endhighlight %}
+```
 
 For functions, the documentation should give enough information to
 apply the function without looking at the function's definition.

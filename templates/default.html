@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>$title$ - Cloud Haskell</title>
+
+    <!-- Bulma CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/custom.css">
+
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="/css/syntax.css">
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
+      <div class="container">
+        <div class="navbar-brand">
+          <a class="navbar-item brand-text" href="/">
+            <strong>Cloud Haskell</strong>
+          </a>
+          <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+          </a>
+        </div>
+
+        <div id="navbarMenu" class="navbar-menu">
+          <div class="navbar-end">
+            <a class="navbar-item" href="/">
+              Home
+            </a>
+            <a class="navbar-item" href="/documentation.html">
+              Documentation
+            </a>
+            <div class="navbar-item has-dropdown is-hoverable">
+              <a class="navbar-link">
+                Tutorials
+              </a>
+              <div class="navbar-dropdown">
+                <a class="navbar-item" href="/tutorials/1ch.html">
+                  Getting Started
+                </a>
+                <a class="navbar-item" href="/tutorials/2ch.html">
+                  Managing Topologies
+                </a>
+                <a class="navbar-item" href="/tutorials/3ch.html">
+                  Getting to know Processes
+                </a>
+                <a class="navbar-item" href="/tutorials/4ch.html">
+                  Managed Processes
+                </a>
+                <a class="navbar-item" href="/tutorials/5ch.html">
+                  Supervision Principles
+                </a>
+                <a class="navbar-item" href="/tutorials/6ch.html">
+                  Advanced Managed Processes
+                </a>
+                <a class="navbar-item" href="/tutorials/tutorial-NT2.html">
+                  Programming with Network.Transport
+                </a>
+              </div>
+            </div>
+            <a class="navbar-item" href="/blog.html">
+              Blog
+            </a>
+            <div class="navbar-item has-dropdown is-hoverable">
+              <a class="navbar-link">
+                Resources
+              </a>
+              <div class="navbar-dropdown">
+                <a class="navbar-item" href="/wiki.html">
+                  Wiki
+                </a>
+                <a class="navbar-item" href="https://github.com/haskell-distributed" target="_blank">
+                  <span class="icon">
+                    <i class="fab fa-github"></i>
+                  </span>
+                  <span>GitHub</span>
+                </a>
+                <a class="navbar-item" href="/static/semantics.pdf">
+                  Formal Semantics
+                </a>
+              </div>
+            </div>
+            <a class="navbar-item" href="/contact.html">
+              Contact
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+      $body$
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer has-background-dark has-text-light">
+      <div class="container">
+        <div class="columns">
+          <div class="column is-4">
+            <h3 class="title is-5 has-text-light">Cloud Haskell</h3>
+            <p class="subtitle is-6 has-text-light">
+              Erlang-style concurrency and distributed programming in Haskell
+            </p>
+          </div>
+          <div class="column is-4">
+            <h4 class="title is-6 has-text-light">Quick Links</h4>
+            <ul>
+              <li><a href="/documentation.html" class="has-text-light">Documentation</a></li>
+              <li><a href="/tutorials/1ch.html" class="has-text-light">Get Started</a></li>
+              <li><a href="https://github.com/haskell-distributed" class="has-text-light" target="_blank">GitHub</a></li>
+            </ul>
+          </div>
+          <div class="column is-4">
+            <h4 class="title is-6 has-text-light">Community</h4>
+            <div class="buttons">
+              <a class="button is-dark" href="https://github.com/haskell-distributed" target="_blank">
+                <span class="icon">
+                  <i class="fab fa-github"></i>
+                </span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="content has-text-centered has-text-light">
+          <p>
+            The Cloud Haskell Platform is open source and available under the BSD3 license.
+          </p>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+      // Navbar burger toggle
+      document.addEventListener('DOMContentLoaded', () => {
+        const navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+        navbarBurgers.forEach( el => {
+          el.addEventListener('click', () => {
+            const target = el.dataset.target;
+            const target = document.getElementById(target);
+            el.classList.toggle('is-active');
+            target.classList.toggle('is-active');
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

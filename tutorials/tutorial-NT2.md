@@ -34,20 +34,20 @@ echoed by the server back to the client.
 
 Here is what it will look like. We can start the server on one host:
 
-{% highlight bash %}
+```bash
 # ./tutorial-server 192.168.1.108 8080
 Echo server started at "192.168.1.108:8080:0"
-{% endhighlight %}
+```
 
 then start the client on another. The client opens a connection to the server,
 sends "Hello world", and prints all the `Events` it receives:
 
-{% highlight bash %}
+```bash
 # ./tutorial-client 192.168.1.109 8080 192.168.1.108:8080:0
 ConnectionOpened 1024 ReliableOrdered "192.168.1.108:8080:0"
 Received 1024 ["Hello world"]
 ConnectionClosed 1024
-{% endhighlight %}
+```
 
 The client receives three `Event`s:
 
@@ -66,21 +66,21 @@ We will start with the client
 ([tutorial-client.hs](https://github.com/haskell-distributed/distributed-process/blob/master/doc/tutorial/tutorial-client.hs)),
 because it is simpler. We first need a bunch of imports:
 
-{% highlight haskell %}
+```haskell
 import Network.Transport
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Network.Socket.Internal (withSocketsDo)
 import System.Environment
 import Data.ByteString.Char8
 import Control.Monad
-{% endhighlight %}
+```
 
 The client will consist of a single main function. [withSocketsDo](http://hackage.haskell.org/package/network-2.6.2.1/docs/Network-Socket-Internal.html#v:withSocketsDo) may be needed for Windows platform with old versions of network library. For compatibility with older versions on Windows, it is good practice to always call withSocketsDo (it's very cheap).
 
-{% highlight haskell %}
+```haskell
 main :: IO ()
 main = withSocketsDo $ do
-{% endhighlight %}
+```
 
 When we start the client we expect three command line arguments.
 Since the client will itself be a network endpoint, we need to know the IP
@@ -88,40 +88,40 @@ address and port number to use for the client. Moreover, we need to know the
 endpoint address of the server (the server will print this address to the
 console when it is started):
 
-{% highlight haskell %}
+```haskell
 [host, port, serverAddr] <- getArgs
-{% endhighlight %}
+```
 
 Next we need to initialize the Network.Transport layer using `createTransport`
 from `Network.Transport.TCP` (in this tutorial we will use the TCP instance of
 `Network.Transport`). The type of `createTransport` is:
 
-{% highlight haskell %}
+```haskell
 createTransport :: N.HostName -> N.ServiceName -> IO (Either IOException Transport)
-{% endhighlight %}
+```
 
 (where `N` is an alias for `Network.Socket`). For the sake of this tutorial we
 are going to ignore all error handling, so we are going to assume it will return
 a `Right` transport:
 
-{% highlight haskell %}
+```haskell
 Right transport <- createTransport host port 
-{% endhighlight %}
+```
 
 Next we need to create an EndPoint for the client. Again, we are going
 to ignore errors:
 
-{% highlight haskell %}
+```haskell
 Right endpoint  <- newEndPoint transport
-{% endhighlight %}
+```
 
 Now that we have an endpoint we can connect to the server, after we convert
 the `String` we got from `getArgs` to an `EndPointAddress`:
 
-{% highlight haskell %}
+```haskell
 let addr = EndPointAddress (pack serverAddr)
 Right conn <- connect endpoint addr ReliableOrdered defaultConnectHints
-{% endhighlight %}
+```
 
 `ReliableOrdered` means that the connection will be reliable (no messages will be
 lost) and ordered (messages will arrive in order). For the case of the TCP transport
@@ -130,33 +130,33 @@ not be true for other transports.
 
 Sending on our new connection is very easy:
 
-{% highlight haskell %}
+```haskell
 send conn [pack "Hello world"]
-{% endhighlight %}
+```
 
 (`send` takes as argument an array of `ByteString`s).
 Finally, we can close the connection:
 
-{% highlight haskell %}
+```haskell
 close conn
-{% endhighlight %}
+```
 
 Function `receive` can be used to get the next event from an endpoint. To print the
 first three events, we can do
 
-{% highlight haskell %}
+```haskell
 replicateM_ 3 $ receive endpoint >>= print
-{% endhighlight %}
+```
 
 Since we're not expecting more than 3 events, we can now close the transport.
 
-{% highlight haskell %}
+```haskell
 closeTransport transport
-{% endhighlight %}
+```
 
 That's it! Here is the entire client again:
 
-{% highlight haskell %}
+```haskell
 main :: IO ()
 main = withSocketsDo $ do
   [host, port, serverAddr] <- getArgs
@@ -171,7 +171,7 @@ main = withSocketsDo $ do
   replicateM_ 3 $ receive endpoint >>= print 
 
   closeTransport transport
-{% endhighlight %}
+```
 
 ### Writing the server
 
@@ -179,7 +179,7 @@ The server ([tutorial-server.hs](https://github.com/haskell-distributed/distribu
 is slightly more complicated, but only slightly. As with the client, we
 start with a bunch of imports:
 
-{% highlight haskell %}
+```haskell
 import Network.Transport
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Network.Socket.Internal (withSocketsDo)
@@ -187,11 +187,11 @@ import Control.Concurrent
 import Data.Map
 import Control.Exception
 import System.Environment
-{% endhighlight %}
+```
 
 We will write the main function first:
 
-{% highlight haskell %}
+```haskell
 main :: IO ()
 main = withSocketsDo $ do
   [host, port]    <- getArgs
@@ -201,7 +201,7 @@ main = withSocketsDo $ do
   forkIO $ echoServer endpoint serverDone 
   putStrLn $ "Echo server started at " ++ show (address endpoint)
   readMVar serverDone `onCtrlC` closeTransport transport
-{% endhighlight %}
+```
 
 This is very similar to the `main` function for the client. We get the
 hostname and port number that the server should use and create a transport
@@ -218,14 +218,14 @@ our connection to them.
 
 `Event` is defined in `Network.Transport` as
 
-{% highlight haskell %}
+```haskell
 data Event = 
     Received ConnectionId [ByteString]
   | ConnectionClosed ConnectionId
   | ConnectionOpened ConnectionId Reliability EndPointAddress 
   | EndPointClosed
   ...
-{% endhighlight %}
+```
 
 (there are few other events, which we are going to ignore). `ConnectionId`s help us
 distinguish messages sent on one connection from messages sent on another. In
@@ -240,7 +240,7 @@ Finally, when we receive the `EndPointClosed` message we signal to the main
 thread that we are doing and terminate. We will receive this message when the
 main thread calls `closeTransport` (that is, when the user presses Control-C). 
 
-{% highlight haskell %}
+```haskell
 echoServer :: EndPoint -> MVar () -> IO ()
 echoServer endpoint serverDone = go empty
   where
@@ -268,20 +268,20 @@ echoServer endpoint serverDone = go empty
         EndPointClosed -> do
           putStrLn "Echo server exiting"
           putMVar serverDone ()
-{% endhighlight %}
+```
 
 This implements almost exactly what we described above. The only complication is that we want to avoid blocking the receive queue; so for every message that comes in we spawn a new thread to deal with it. Since is therefore possible that we receive the `Received` event before an outgoing connection has been established, we map connection IDs to MVars containing connections. 
 
 Finally, we need to define `onCtrlC`; `p onCtrlC q` will run `p`; if this is interrupted by Control-C we run `q` and then try again:
 
-{% highlight haskell %}
+```haskell
 onCtrlC :: IO a -> IO () -> IO a
 p `onCtrlC` q = catchJust isUserInterrupt p (const $ q >> p `onCtrlC` q)
   where
     isUserInterrupt :: AsyncException -> Maybe () 
     isUserInterrupt UserInterrupt = Just ()
     isUserInterrupt _             = Nothing
-{% endhighlight %}
+```
 
 ### Conclusion
 

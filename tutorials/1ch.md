@@ -26,9 +26,9 @@ and [GitHub](https://github.com).
 
 Starting a new Cloud Haskell project using `stack` is as easy as
 
-{% highlight bash %}
+```bash
 $ stack new
-{% endhighlight %}
+```
 
 in a fresh new directory. This will populate the directory with
 a number of files, chiefly `stack.yaml` and `*.cabal` metadata files
@@ -48,22 +48,22 @@ types that Cloud Haskell needs at a minimum in order to run.
 
 In `app/Main.hs`, we start with our imports:
 
-{% highlight haskell %}
+```haskell
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Control.Distributed.Process
 import Control.Distributed.Process.Node
-{% endhighlight %}
+```
 
 Our TCP network transport backend needs an IP address and port to get started
 with:
 
-{% highlight haskell %}
+```haskell
 main :: IO ()
 main = do
   Right t <- createTransport "127.0.0.1" "10501" defaultTCPParameters
   node <- newLocalNode t initRemoteTable
   ....
-{% endhighlight %}
+```
 
 And now we have a running node.
 
@@ -75,7 +75,7 @@ a `Process` action to run, because our concurrent code will run in the
 id can be used to send messages to the running process - here we will send one
 to ourselves!
 
-{% highlight haskell %}
+```haskell
 -- in main
   _ <- runProcess node $ do
     -- get our own process id
@@ -84,7 +84,7 @@ to ourselves!
     hello <- expect :: Process String
     liftIO $ putStrLn hello
   return ()
-{% endhighlight %}
+```
 
 Note that we haven't deadlocked our own thread by sending to and receiving
 from its mailbox in this fashion. Sending messages is a completely
@@ -100,7 +100,7 @@ there is. Messages in the mailbox are ordered by time of arrival.
 
 Let's spawn two processes on the same node and have them talk to each other:
 
-{% highlight haskell %}
+```haskell
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Control.Distributed.Process
@@ -141,7 +141,7 @@ main = do
 
     -- Without the following delay, the process sometimes exits before the messages are exchanged.
     liftIO $ threadDelay 2000000
-{% endhighlight %}
+```
 
 Note that we've used `receiveWait` this time around to get a message.
 `receiveWait` and similarly named functions can be used with the
@@ -166,10 +166,10 @@ again.
 Processes may send any datum whose type implements the `Serializable`
 typeclass, defined as:
 
-{% highlight haskell %}
+```haskell
 class (Binary a, Typeable) => Serializable a
 instance (Binary a, Typeable a) => Serializable a
-{% endhighlight %}
+```
 
 That is, any type that is `Binary` and `Typeable` is `Serializable`. This is
 the case for most of Cloud Haskell's primitive types as well as many standard
@@ -177,14 +177,14 @@ data types. For custom data types, the `Typeable` instance is always
 given by the compiler, and the `Binary` instance can be auto-generated
 too in most cases, e.g.:
 
-{% highlight haskell %}
+```haskell
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 data T = T Int Char deriving (Generic, Typeable)
 
 instance Binary T
-{% endhighlight %}
+```
 
 
 ### Spawning Remote Processes
@@ -212,9 +212,9 @@ Static actions are not easy to construct by hand, but fortunately Cloud
 Haskell provides a little bit of Template Haskell to help. If `f :: T1 -> T2`
 then
 
-{% highlight haskell %}
+```haskell
   $(mkClosure 'f) :: T1 -> Closure T2
-{% endhighlight %}
+```
 
 You can turn any top-level unary function into a `Closure` using `mkClosure`.
 For curried functions, you'll need to uncurry them first (i.e. "tuple up" the
@@ -228,27 +228,27 @@ We need to configure our remote table (see the [API reference][6] for
 more details) and the easiest way to do this, is to let the library
 generate the relevant code for us. For example:
 
-{% highlight haskell %}
+```haskell
 sampleTask :: (TimeInterval, String) -> Process ()
 sampleTask (t, s) = sleep t >> say s
 
 remotable ['sampleTask]
-{% endhighlight %}
+```
 
 The last line is a top-level Template Haskell splice. At the call site for
 `spawn`, we can construct a `Closure` corresponding to an application of
 `sampleTask` like so:
 
-{% highlight haskell %}
+```haskell
 ($(mkClosure 'sampleTask) (seconds 2, "foobar"))
-{% endhighlight %}
+```
 
 The call to `remotable` implicitly generates a remote table by inserting
 a top-level definition `__remoteTable :: RemoteTable -> RemoteTable` in our
 module for us. We compose this with other remote tables in order to come up
 with a final, merged remote table for all modules in our program:
 
-{% highlight haskell %}
+```haskell
 {-# LANGUAGE TemplateHaskell #-}
 
 import Control.Concurrent (threadDelay)
@@ -275,7 +275,7 @@ main = do
     _ <- spawnLocal $ sampleTask (1 :: Int, "using spawnLocal")
     pid <- spawn us $ $(mkClosure 'sampleTask) (1 :: Int, "using spawn")
     liftIO $ threadDelay 2000000
-{% endhighlight %}
+```
 
 In the above example, we spawn `sampleTask` on node `us` in two
 different ways:

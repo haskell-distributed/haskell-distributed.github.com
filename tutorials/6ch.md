@@ -55,7 +55,7 @@ that our clients only communicate with us in well-known ways. Let's take a
 look at this in action, revisiting the well-trodden _math server_ example
 from our previous tutorials:
 
-{% highlight haskell %}
+```haskell
 module MathServer
   ( -- client facing API
     MathServer()
@@ -82,7 +82,7 @@ launchMathServer = launch >>= return . MathServer
     , unhandledMessagePolicy = Drop
     }
     in spawnLocal $ start () (statelessInit Infinity) server >> return ()
-{% endhighlight %}
+```
 
 What we've changed here is the _handle_ clients use to communicate with the
 process, hiding the `ProcessId` behind a newtype and forcing client code to
@@ -118,17 +118,17 @@ We can alleviate this problem using phantom type parameters, storing only
 the real `ProcessId` we need to communicate with the server, whilst utilising
 the compiler to ensure the correct types are assumed at both ends.
 
-{% highlight haskell %}
+```haskell
 data Registry k v = Registry { registryPid :: ProcessId }
   deriving (Typeable, Generic, Show, Eq)
 instance (Keyable k, Serializable v) => Binary (Registry k v) where
-{% endhighlight %}
+```
 
 In order to start our registry, we need to know the specific `k` and `v` types,
 but we do not real values of these, so we use scoped type variables to reify
 them when creating the `Registry` handle:
 
-{% highlight haskell %}
+```haskell
 start :: forall k v. (Keyable k, Serializable v) => Process (Registry k v)
 start = return . Registry =<< spawnLocal (run (undefined :: Registry k v))
 
@@ -136,7 +136,7 @@ run :: forall k v. (Keyable k, Serializable v) => Registry k v -> Process ()
 run _ =
   MP.pserve () (const $ return $ InitOk initState Infinity) serverDefinition
   -- etc....
-{% endhighlight %}
+```
 
 Having wrapped the `ProcessId` in a newtype that ensures the types with which
 the server was initialised are respected by clients, we use the same approach
@@ -144,11 +144,11 @@ as earlier to force clients of our API to interact with the server not only
 using the requisite call/cast protocol, but also providing the correct types
 in the form of a valid handle.
 
-{% highlight haskell %}
+```haskell
 addProperty :: (Keyable k, Serializable v)
             => Registry k v -> k -> v -> Process RegisterKeyReply
 addProperty reg k v = ....
-{% endhighlight %}
+```
 
 So long as we only expose `Registry` newtype construction via our `start` API,
 clients cannot forge a registry handle and both client and server can rely on
@@ -175,10 +175,10 @@ are your friend. By providing a `Resolvable` instance, you can expose your
 decision to only expose the `ProcessId` via a typeclass) the need to use the
 handle in client code.
 
-{% highlight haskell %}
+```haskell
 instance Resolvable (Registry k v) where
   resolve = return . Just . registryPid
-{% endhighlight %}
+```
 
 The [`Routable`][rtbl] typeclass provides a means to dispatch messages without
 having to know the implementation details behind the scenes. This provides us
@@ -190,16 +190,16 @@ There is a default (and fairly efficient) instance of [`Routable`][rtbl] for all
 [`Resolvable`][rsbl] instances, so it is usually enough to implement the latter.
 An explicit implementation for our `Registry` would look like this:
 
-{% highlight haskell %}
+```haskell
 instance Routable (Registry k v) where
   sendTo       reg msg = send (registryPid reg) msg
   unsafeSendTo reg msg = unsafeSend (registryPid reg) msg
-{% endhighlight %}
+```
 
 Similar typeclasses are provided for the many occaisions when you need to link
 to or kill a process without knowing its `ProcessId`:
 
-{% highlight haskell %}
+```haskell
 class Linkable a where
   -- | Create a /link/ with the supplied object.
   linkTo :: a -> Process ()
@@ -207,7 +207,7 @@ class Linkable a where
 class Killable a where
   killProc :: a -> String -> Process ()
   exitProc :: (Serializable m) => a -> m -> Process ()
-{% endhighlight %}
+```
 
 Again, there are default instances of both typeclasses for all [`Resolvable`][rsbl]
 types, so it is enough to provide just that instance for your handles.
@@ -264,11 +264,11 @@ do, right up to monitoring the server for potential exit signals (so as not to
 deadlock the client if the server dies before replying) - all of which is handled
 by `awaitResponse` in the platform's `Primitives` module.
 
-{% highlight haskell %}
+```haskell
 syncSafeCallChan server msg = do
   rp <- callChan server msg
   awaitResponse server [ matchChan rp (return . Right) ]
-{% endhighlight %}
+```
 
 This might sound like a vast improvement on the usual combination of a client
 API that uses `call` and a corresponding `handleCall` in the process definition,
@@ -280,7 +280,7 @@ so on. None of these features will work with the corollary family of
 leave as a question for the reader to determine. The following example demonstrates
 the use of reply channels:
 
-{% highlight haskell %}
+```haskell
 -- two versions of the same handler, one for calls, one for typed (reply) channels
 
 data State
@@ -304,7 +304,7 @@ callHandler = handleCall $ \state Input -> reply Output state
 
 chanHandler :: Dispatcher State
 chanHandler = handleRpcChan $ \state port Input -> replyChan port Output >> continue state
-{% endhighlight %}
+```
 
 ------
 > ![Info: ][info] Using typed channels for replies is both flexible and efficient.
@@ -361,7 +361,7 @@ to the calling process, at least to some extent. For this example, we'll examine
 [`Mailbox`][mailbox] module, since this combines a fire-and-forget control channel with
 an opaque server handle.
 
-{% highlight haskell %}
+```haskell
 -- our handle is fairly simple
 data Mailbox = Mailbox { pid   :: !ProcessId
                        , cchan :: !(ControlPort ControlMessage)
@@ -424,7 +424,7 @@ processDefinition pid tc cc = do
                                            , handleRaw  handleRawInputs ]
                           , unhandledMessagePolicy = DeadLetter pid
                           } :: Process (ProcessDefinition State)
-{% endhighlight %}
+```
 
 Since the rest of the mailbox initialisation code is quite complex, we'll leave it
 there for now. The important details to take away are the use of `chanServe`
@@ -448,7 +448,7 @@ since _that_ API only supports a single control channel - the original purpose b
 the control channel concept - and instead, we'll create the process loop ourselves,
 using the exported low level `recvLoop` function.
 
-{% highlight haskell %}
+```haskell
 
 type NumRequests = Int
 
@@ -547,7 +547,7 @@ handleStats :: NumRequests -> StatsRequest -> Process (ProcessAction State)
 handleStats count (StatsReq replyTo) = do
   replyChan replyTo count
   continue count
-{% endhighlight %}
+```
 
 Although not very useful, this is a working example. Note that the client must
 deal with a `ControlPort` and not the complete `ControlChannel` itself. Also

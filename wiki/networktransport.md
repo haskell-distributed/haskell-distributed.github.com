@@ -44,7 +44,7 @@ You may also submit issues on [github][8].
 
 For a flavour of what programming with `Network.Transport` looks like, here is a tiny self-contained example. 
 
-{% highlight haskell %}
+```haskell
 import Network.Transport
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Control.Concurrent
@@ -84,7 +84,7 @@ main = do
   conn <- takeMVar clientDone
   close conn
   takeMVar serverDone
-{% endhighlight %}
+```
 
 We create a "server" and a "client" (each represented by an `EndPoint`).
 The server waits for `Event`s and whenever it receives a message it just prints
@@ -166,14 +166,14 @@ A series of benchmarks has shown that
   using `Data.Serialize` is very slow (and using Blaze.ByteString not much
   better).  This is fast:
 
-{% highlight haskell %}
+```haskell
 foreign import ccall unsafe "htonl" htonl :: CInt -> CInt
 
 encodeLength :: Int32 -> IO ByteString
 encodeLength i32 =
   BSI.create 4 $ \p ->
     pokeByteOff p 0 (htonl (fromIntegral i32))
-{% endhighlight %}
+```
 
 * We do not need to use `blaze-builder` or related; 
   `Network.Socket.Bytestring.sendMany` uses vectored I/O. On the client side
@@ -202,7 +202,7 @@ to the Transport API.
 
 We can either have this as part of the transport
 
-{% highlight haskell %}
+```haskell
   data Transport = Transport {
       ...
     , newMulticastGroup :: IO (Either Error MulticastGroup)
@@ -213,11 +213,11 @@ We can either have this as part of the transport
     , multicastAddress     :: MulticastAddress
     , deleteMulticastGroup :: IO ()
     }
-{% endhighlight %}
+```
 
 or as part of an endpoint:
 
-{% highlight haskell %}
+```haskell
   data Transport = Transport {
       newEndPoint :: IO (Either Error EndPoint)
     }
@@ -226,7 +226,7 @@ or as part of an endpoint:
       ...
     , newMulticastGroup :: IO (Either Error MulticastGroup)
     }
-{% endhighlight %}
+```
 
 It should probably be part of the `Transport`, as there is no real connection
 between an endpoint and the creation of the multigroup (however, see section
@@ -239,7 +239,7 @@ endpoint wants to receive events when multicast messages are sent.
 
 We could reify a subscription:
 
-{% highlight haskell %}
+```haskell
   data EndPoint = EndPoint {
       ...
     , multicastSubscribe :: MulticastAddress -> IO MulticastSubscription
@@ -249,17 +249,17 @@ We could reify a subscription:
       ... 
       , multicastSubscriptionClose :: IO ()
     }
-{% endhighlight %}
+```
 
 but this suggests that one might have multiple subscriptions to the same group
 which can be distinguished, which is misleading. Probably better to have:
 
-{% highlight haskell %}
+```haskell
   data EndPoint = EndPoint {
       multicastSubscribe   :: MulticastAddress -> IO ()
     , multicastUnsubscribe :: MulticastAddress -> IO ()
     }
-{% endhighlight %}
+```
 
 #### Sending messages to a multicast group
 
@@ -275,7 +275,7 @@ same multicast group, and if so, whether it is useful.
 If we decide that multiple lightweight connections to the multigroup is useful,
 one option might be
 
-{% highlight haskell %}
+```haskell
   data EndPoint = EndPoint {
       ...
     , connect :: Address -> Reliability -> IO (Either Error Connection)
@@ -293,7 +293,7 @@ one option might be
       Receive ConnectionId [ByteString]
     | ConnectionClosed ConnectionId
     | ConnectionOpened ConnectionId ConnectionType Reliability Address 
-{% endhighlight %}
+```
 
 The advantage of this approach is it's consistency with the rest of the
 interface. The problem is that with multicast we cannot reliably send any
@@ -308,7 +308,7 @@ multicast protocols, then that would fit this design).
 If we don't want to support multiple lightweight connections to a multicast
 group then a better design would be
 
-{% highlight haskell %}
+```haskell
   data EndPoint = EndPoint {
     , connect       :: Address -> Reliability -> IO (Either Error Connection)
     , multicastSend :: MulticastAddress -> [ByteString] -> IO ()
@@ -317,11 +317,11 @@ group then a better design would be
   data Event = 
       ...
     | MulticastReceive Address [ByteString]
-{% endhighlight %}
+```
 
 or alternatively
 
-{% highlight haskell %}
+```haskell
   data EndPoint = EndPoint {
       ...
     , resolveMulticastGroup :: MulticastAddress -> IO (Either Error MulticastGroup) 
@@ -331,7 +331,7 @@ or alternatively
     , ...
     , send :: [ByteString] -> IO ()
     }
-{% endhighlight %}
+```
 
 If we do this however we need to make sure that newGroup is part an `EndPoint`,
 not the `Transport`, otherwise `send` will not know the source of the message.
@@ -344,7 +344,7 @@ some point too.
 
 The above considerations lead to the following tentative proposal:
 
-{% highlight haskell %}
+```haskell
   data Transport = Transport {
       newEndPoint :: IO (Either Error EndPoint)
     }
@@ -377,7 +377,7 @@ The above considerations lead to the following tentative proposal:
     , multicastUnsubscribe :: IO ()
     , multicastClose       :: IO ()
     }
-{% endhighlight %}
+```
 
 where `multicastClose` indicates to the runtime that this endpoint no longer
 wishes to send to this multicast group, and we can therefore deallocate the

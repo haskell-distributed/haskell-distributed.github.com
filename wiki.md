@@ -24,9 +24,9 @@ There is a makefile in the root directory which will create a wiki page for
 you (in the wiki directory) and populate the front matter for you. Calling the
 makefile is pretty easy.
 
-{% highlight bash %}
+```bash
 make wikipage NAME=<pagename>
-{% endhighlight %}
+```
 
 [1]: https://github.com/mojombo/jekyll
 [2]: https://github.com/haskell-distributed/haskell-distributed.github.com

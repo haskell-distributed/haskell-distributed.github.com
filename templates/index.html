@@ -1,0 +1,196 @@
+<!-- Hero Section -->
+<section class="hero is-medium is-primary is-bold">
+  <div class="hero-body">
+    <div class="container">
+      <h1 class="title is-1 is-spaced">
+        Cloud Haskell
+      </h1>
+      <h2 class="subtitle is-3">
+        Erlang-style concurrent and distributed programming in Haskell
+      </h2>
+      <div class="buttons is-centered">
+        <a href="/tutorials/1ch.html" class="button is-light is-large">
+          <span class="icon">
+            <i class="fas fa-rocket"></i>
+          </span>
+          <span>Get Started</span>
+        </a>
+        <a href="/documentation.html" class="button is-light is-outlined is-large">
+          <span class="icon">
+            <i class="fas fa-book"></i>
+          </span>
+          <span>Documentation</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Introduction -->
+<section class="section">
+  <div class="container">
+    <div class="content is-medium">
+      $body$
+    </div>
+  </div>
+</section>
+
+<!-- Feature Cards -->
+<section class="section has-background-light">
+  <div class="container">
+    <h2 class="title is-2 has-text-centered mb-6">Features</h2>
+    <div class="columns is-multiline">
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content">
+            <div class="has-text-centered mb-4">
+              <span class="icon is-large has-text-primary">
+                <i class="fas fa-3x fa-network-wired"></i>
+              </span>
+            </div>
+            <h3 class="title is-4 has-text-centered">Distributed Computing</h3>
+            <p class="content">
+              Build distributed applications with explicit message passing between nodes.
+              Send messages across networks with type-safe, serializable values.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content">
+            <div class="has-text-centered mb-4">
+              <span class="icon is-large has-text-info">
+                <i class="fas fa-3x fa-tasks"></i>
+              </span>
+            </div>
+            <h3 class="title is-4 has-text-centered">Concurrent Processes</h3>
+            <p class="content">
+              Lightweight processes with asynchronous message passing.
+              Inspired by Erlang's actor model for building highly concurrent applications.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content">
+            <div class="has-text-centered mb-4">
+              <span class="icon is-large has-text-success">
+                <i class="fas fa-3x fa-shield-alt"></i>
+              </span>
+            </div>
+            <h3 class="title is-4 has-text-centered">Fault Tolerance</h3>
+            <p class="content">
+              Supervise processes and handle failures gracefully.
+              Monitor and link processes for automatic error recovery and resilient systems.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content">
+            <div class="has-text-centered mb-4">
+              <span class="icon is-large has-text-danger">
+                <i class="fas fa-3x fa-plug"></i>
+              </span>
+            </div>
+            <h3 class="title is-4 has-text-centered">Pluggable Transports</h3>
+            <p class="content">
+              Generic network transport API supporting TCP, in-memory, and custom backends.
+              Switch between transports without changing application code.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content">
+            <div class="has-text-centered mb-4">
+              <span class="icon is-large has-text-warning">
+                <i class="fas fa-3x fa-server"></i>
+              </span>
+            </div>
+            <h3 class="title is-4 has-text-centered">Platform Libraries</h3>
+            <p class="content">
+              Rich ecosystem of libraries for common patterns: client/server, async tasks,
+              registries, execution control, and more.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content">
+            <div class="has-text-centered mb-4">
+              <span class="icon is-large has-text-link">
+                <i class="fas fa-3x fa-code"></i>
+              </span>
+            </div>
+            <h3 class="title is-4 has-text-centered">Type Safe</h3>
+            <p class="content">
+              Leverage Haskell's strong type system for distributed programming.
+              Static closures ensure type safety across network boundaries.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Recent Blog Posts -->
+$if(posts)$
+<section class="section">
+  <div class="container">
+    <h2 class="title is-2 has-text-centered mb-6">Latest Updates</h2>
+    <div class="columns is-multiline">
+      $for(posts)$
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content">
+            <p class="subtitle is-6 has-text-grey">$date$</p>
+            <h3 class="title is-5">
+              <a href="$url$">$title$</a>
+            </h3>
+          </div>
+        </div>
+      </div>
+      $endfor$
+    </div>
+    <div class="has-text-centered mt-5">
+      <a href="/blog.html" class="button is-primary">View All Posts</a>
+    </div>
+  </div>
+</section>
+$endif$
+
+<!-- Call to Action -->
+<section class="section has-background-primary">
+  <div class="container has-text-centered">
+    <h2 class="title is-2 has-text-white mb-4">Ready to Get Started?</h2>
+    <p class="subtitle is-4 has-text-white mb-5">
+      Build distributed systems with the power of Haskell
+    </p>
+    <div class="buttons is-centered">
+      <a href="/tutorials/1ch.html" class="button is-light is-large">
+        <span class="icon">
+          <i class="fas fa-book-open"></i>
+        </span>
+        <span>Read the Tutorial</span>
+      </a>
+      <a href="https://github.com/haskell-distributed" class="button is-light is-outlined is-large" target="_blank">
+        <span class="icon">
+          <i class="fab fa-github"></i>
+        </span>
+        <span>View on GitHub</span>
+      </a>
+    </div>
+  </div>
+</section>

@@ -231,52 +231,52 @@ We start with a Transport. Creating a Transport is totally backend dependent. Mo
 
 A Transport lets us create new connections. Our current implementation provides ordinary reliable many-to-one connections, plus the multicast one-to-many connections. It does not yet provide unordered or unreliable many-to-one connections, but these will closely follow the interface for the ordinary reliable many-to-one connections.
 
-{% highlight haskell %}
+```haskell
 data Transport = Transport
   { newConnectionWith :: Hints -> IO TargetEnd
   , newMulticastWith  :: Hints -> IO MulticastSourceEnd
   , deserialize       :: ByteString -> Maybe Address
   }
-{% endhighlight %}
+```
 
 We will start with ordinary connections and look at multicast later. 
 
 We will return later to the meaning of the hints. We have a helper function for the common case of default hints.
 
-{% highlight haskell %}
+```haskell
 newConnection :: Transport -> IO TargetEnd
 newConnection transport = newConnectionWith transport defaultHints
-{% endhighlight %}
+```
 
 The `newConnection` action creates a new connection and gives us its `TargetEnd`. The `TargetEnd` is a stateful object representing one endpoint of the connection. For the corresponding source side, instead of creating a stateful `SourceEnd` endpoint, we can take the address of any `TargetEnd`:
 
-{% highlight haskell %}
+```haskell
 address :: TargetEnd -> Address
-{% endhighlight %}
+```
 
 The reason for getting the address of the target rather than `newConnection` just giving us a `SourceEnd` is that usually we only want to create a `SourceEnd` on remote nodes not on the local node.
 
 An `Address` represents an address of an existing endpoint. It can be serialised and copied to other nodes. On the remote node the Transport's `deserialize` function is is used to reconstruct the `Address` value. Once on the remote node, a `SourceEnd` can created that points to the `TargetEnd` identified by the `Address`.
 
-{% highlight haskell %}
+```haskell
 data Address = Address
   { connectWith :: SourceHints -> IO SourceEnd
   , serialize   :: ByteString
   }
-{% endhighlight %}
+```
 
 Again, ignore the hints for now.
 
-{% highlight haskell %}
+```haskell
 connect :: Address -> IO SourceEnd
 connect address = connectWith address defaultSourceHints
-{% endhighlight %}
+```
 
 The `connect` action makes a stateful endpoint from the address. It is what really establishes a connection. After that the `SourceEnd` can be used to send messages which will be received at the `TargetEnd`.
 
 The `SourceEnd` and `TargetEnd` are then relatively straightforward. They are both stateful endpoint objects representing corresponding ends of an established connection.
 
-{% highlight haskell %}
+```haskell
 newtype SourceEnd = SourceEnd
   { send :: [ByteString] -> IO ()
   }
@@ -285,7 +285,7 @@ newtype TargetEnd = TargetEnd
   { receive :: IO [ByteString]
   , address :: Address
   }
-{% endhighlight %}
+```
 
 The `SourceEnd` sports a vectored send. That is, it allows sending a message stored in a discontiguous buffer (represented as a list of ByteString chunks). The `TargetEnd` has a vectored receive, though it is not vectored in the traditional way because it is the transport not the caller that handles the buffers and decides if it will receive the incoming message into a single contiguous buffer or a discontiguous buffer. Callers must always be prepared to handle discontiguous incoming messages or pay the cost of copying into a contiguous buffer.
 
@@ -306,7 +306,7 @@ For the multicast connections, the address, source and target ends are analogous
 
 The `newMulticast` is the other way round compared to `newConnection`: it gives us a stateful `MulticastSourceEnd` from which we can obtain the address `MulticastAddress`.
     
-{% highlight haskell %}
+```haskell
 newMulticast :: Transport -> IO MulticastSourceEnd
 newMulticast transport = newMulticastWith transport defaultHints
 
@@ -323,7 +323,7 @@ newtype MulticastAddress = MulticastAddress
 newtype MulticastTargetEnd = MulticastTargetEnd
   { multicastReceive :: IO [ByteString]
   }
-{% endhighlight %}
+```
 
 The multicast send has an implementation-defined upper bound on the message size which can be discovered on a per-connection basis.
 
@@ -334,17 +334,17 @@ Creating a `Transport` object is completely backend-dependent. There is the oppo
 
 In the simplest case (e.g. a dummy in-memory transport) there might be nothing to configure:
 
-{% highlight haskell %}
+```haskell
 mkTransport :: IO Transport
-{% endhighlight %}
+```
 
 For a TCP backend we might have:
 
-{% highlight haskell %}
+```haskell
 mkTransport :: TCPConfig -> IO Transport
 
 data TCPConfig = ...
-{% endhighlight %}
+```
 
 This `TCPConfig` can contain arbitrary amounts of configuration data. Exactly what it contains is closely connected with how we should set per-connection parameters.
 
@@ -359,11 +359,11 @@ With our design approach it is easy to pass backend-specific types and configura
 
 This makes it easy to use a constant set of configuration parameters for every connection. For example for our example TCP backend above we could have:
 
-{% highlight haskell %}
+```haskell
 data TCPConfig = TCPConfig {
        socketConfiguration :: SocketOptions
      }
-{% endhighlight %}
+```
 
 This has the advantage that it gives us full access to all the options using the native types of the underlying network library (`SocketOptions` type comes from the `network` library).
 
@@ -371,23 +371,23 @@ The drawback of this simple approach is that we cannot set different options for
 
 Allowing different connection options depending on the source and destination addresses is reasonably straightforward:
 
-{% highlight haskell %}
+```haskell
 data TCPConfig = TCPConfig {
        socketConfiguration :: Ip.Address -> Ip.Address
                            -> SocketOptions
      }
-{% endhighlight %}
+```
 
 We simply make the configuration be a function that returns the connection options but is allowed to vary depending on the IP addresses involved. Separately this could make use of configuration data such as a table of known nodes, perhaps passed in by a cluster job scheduler.
 
 Having options vary depending on how the connection is to be used is more tricky. If we are to continue with this approach then it relies on the transport being able to identify how a client is using (or intends to use) each connection. Our proposed solution is that when each new connection is made, the client supplies a set of "hints". These are not backend specific, they are general indications of what the client wants, or how the client intends to use the connection. The backend can then interpret these hints and transform them into the real network-specific connection options:
 
-{% highlight haskell %}
+```haskell
 data TCPConfig = TCPConfig {
        socketConfiguration :: Hints -> Ip.Address -> Ip.Address
                            -> SocketOptions
      }
-{% endhighlight %}
+```
 
 What exactly goes into the hints will have to be considered in consultation with networking experts and people implementing backends. In particular it might indicate if bandwidth or latency is more important (e.g. to help decide if NO_DELAY should be used), if the connection is to be heavily or lightly used (to help decide buffer size) etc.
 
@@ -418,29 +418,29 @@ A `ProcessId` serves two purposes, one is to communicate with a process directly
 
 The main APIs involving a ProcessId are:
 
-{% highlight haskell %}
+```haskell
 getSelfPid :: ProcessM ProcessId
 send  :: Serializable a => ProcessId -> a -> ProcessM ()
 spawn :: NodeId -> Closure (ProcessM ()) -> ProcessM ProcessId
-{% endhighlight %}
+```
 
 and linking and service requests:
 
-{% highlight haskell %}
+```haskell
 linkProcess    :: ProcessId -> ProcessM ()
 monitorProcess :: ProcessId -> ProcessId -> MonitorAction -> ProcessM ()
 nameQuery      :: NodeId -> String -> ProcessM (Maybe ProcessId)
-{% endhighlight %}
+```
 
 A NodeId is used to enable us to talk to the service processes on a node.
 
 The main APIs involving a `NodeId` are:
 
-{% highlight haskell %}
+```haskell
 getSelfNode :: ProcessM NodeId
 spawn       :: NodeId -> Closure (ProcessM ()) -> ProcessM ProcessId
 nameQuery   :: NodeId -> String -> ProcessM (Maybe ProcessId)
-{% endhighlight %}
+```
 
 
 ### NodeID and ProcessId representation
@@ -454,15 +454,15 @@ So for a ProcessId we need:
 
 We define it as
 
-{% highlight haskell %}
+```haskell
 data ProcessId = ProcessId SourceEnd NodeId LocalProcessId
-{% endhighlight %}
+```
 
 For a `NodeId` we need to be able to talk to the service processes on that node.
 
-{% highlight haskell %}
+```haskell
 data NodeId = NodeId SourceEnd
-{% endhighlight %}
+```
 
 The single 'SourceEnd's is for talking to the basic service processes (ie the processes involved in implementing spawn and link/monitor). The service process Ids on each node are well known and need not be stored.
 
@@ -470,17 +470,17 @@ The single 'SourceEnd's is for talking to the basic service processes (ie the pr
 
 A cloud Haskell channel `SendPort` is similar to a `ProcessId` except that we do not need the `NodeId` because we do not need to talk about the process on the other end of the port.
 
-{% highlight haskell %}
+```haskell
 data SendPort a = SendPort SourceEnd
-{% endhighlight %}
+```
 
 ### Cloud Haskell backend initialisation and neighbour setup
 
 In the first implementation, the initialisation was done using:
 
-{% highlight haskell %}
+```haskell
 remoteInit :: Maybe FilePath -> (String -> ProcessM ()) -> IO ()
-{% endhighlight %}
+```
 
 This takes a configuration file (or uses an environment variable to find the same), an initial process, and it launches everything by reading the config, creating the local node and running the initial process. The initial process gets passed some role string obtained from the configuration file.
 
@@ -488,11 +488,11 @@ One of the slightly tricky issues with writing a program for a cluster is how to
 
 The first cloud Haskell implementation provides:
 
-{% highlight haskell %}
+```haskell
 type PeerInfo = Map String [NodeId]
 getPeers       :: ProcessM PeerInfo
 findPeerByRole :: PeerInfo -> String -> [NodeId]
-{% endhighlight %}
+```
 
 The implementation obtains this information using magic and configuration files.
 
@@ -511,51 +511,51 @@ So in the new design, each application selects a Cloud Haskell backend by import
 
 Exactly how this is exposed has not been finalised. Internally we have an abstraction `LocalNode` which is a context object that knows about all the locally running processes on the node. We have:
 
-{% highlight haskell %}
+```haskell
 newLocalNode :: Transport -> IO LocalNode
 runProcess   :: LocalNode -> Process () -> IO ()
-{% endhighlight %}
+```
 
 and each backend will (at least internally) have a function something like:
 
-{% highlight haskell %}
+```haskell
 mkTransport :: {...config...} -> IO Transport
-{% endhighlight %}
+```
 
 So the initialisation process is more or less
 
-{% highlight haskell %}
+```haskell
 init :: {...} -> Process () -> IO ()
 init config initialProcess = do
   transport <- mkTransport config
   localnode <- newLocalNode transport
   runProcess localnode initialProcess
-{% endhighlight %}
+```
 
 We could export all these things and have applications plug them together. 
 
 Alternatively we might have each backend provide an initialisation that does it all in one go. For example the backend that forks multiple OS process might have an init like this:
 
-{% highlight haskell %}
+```haskell
 init :: Int -> ([NodeId] -> Process ()) -> IO ()
-{% endhighlight %}
+```
 
 It takes a number of (OS) processes to fork and the initial (CH) process gets passes a corresponding number of remote `NodeId`s.
 
 For the backend that deals with VMs in the cloud, it might have two initialisation functions, one for the controller node and one for worker nodes.
 
-{% highlight haskell %}
+```haskell
 initController :: ControllerConfig -> Process () -> IO ()
 initWorker  :: WorkerConfig -> IO ()
-{% endhighlight %}
+```
 
 Additionally it might have actions for firing up new VMs and running the program binary in worker mode on that VM:
 
-{% highlight haskell %}
+```haskell
 spawnVM    :: VmAccount -> IO VM
 initOnVM   :: VM -> IO NodeId
 shutdownVM :: VM -> IO ()
-{% endhighlight %}
+```
 
 For example, supposing in our application's 'main' we call the IP backend and initialise a Transport object, representing the transport backend for cloud Haskell:
 
@@ -565,9 +565,9 @@ There are contexts where it makes sense to use more than one `Transport` in a si
 
 There are various challenges related to addressing. Assuming these can be solved, it should be considered how initialisation might be done when there are multiple transports / backends in use. We might want to have:
 
-{% highlight haskell %}
+```haskell
 newLocalNode :: [Transport] -> IO LocalNode
-{% endhighlight %}
+```
 
 and expose it to the clients.
 

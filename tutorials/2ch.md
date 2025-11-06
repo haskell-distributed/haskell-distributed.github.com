@@ -23,7 +23,7 @@ node names/addresses, or by using some form of registrar such as DNS-SD/Bonjour)
 Here is an example program built against the [`simplelocalnet`][1] backend, that periodically
 searches for a list of peer nodes, and sends a message to a registered (named) process on each.
 
-{% highlight haskell %}
+```haskell
 import System.Environment (getArgs)
 import Control.Distributed.Process
 import Control.Distributed.Process.Node (initRemoteTable, runProcess)
@@ -38,7 +38,7 @@ main = do
   peers   <- findPeers backend 1000000
   runProcess node $ forM_ peers $ \peer -> nsendRemote peer "echo-server" "hello!"
 
-{% endhighlight %}
+```
 
 Clearly the program isn't very useful, but it illustrates the two key concepts that
 `simplelocalnet` relies on. Firstly, that we `initializeBackend` in order to get
@@ -52,7 +52,7 @@ Here we simply rehash the controller/worker example from the `simplelocalnet` do
 With the same imports as the example above, we add a no-op worker and a controller that
 takes a list of its (known) workers, which it prints out before terminating them all.
 
-{% highlight haskell %}
+```haskell
 main :: IO ()
 main = do
   args <- getArgs
@@ -65,18 +65,18 @@ main = do
       backend <- initializeBackend host port initRemoteTable
       startSlave backend
 
-{% endhighlight %}
+```
 
 And the controller node is defined thus:
 
-{% highlight haskell %}
+```haskell
 controller :: Backend -> [NodeId] -> Process ()
 controller backend workers = do
   -- Do something interesting with the workers
   liftIO . putStrLn $ "Workers: " ++ show workers
   -- Terminate the workers when the controller terminates (this is optional)
   terminateAllSlaves backend
-{% endhighlight %}
+```
 
 ### Other Topologies and Backends
 
@@ -88,7 +88,7 @@ discovers and maintains knowledge of it's peers.
 Here is an example of node discovery using the [`distributed-process-p2p`][3]
 backend:
 
-{% highlight haskell %}
+```haskell
 import System.Environment (getArgs)
 import Control.Distributed.Process
 import Control.Distributed.Process.Node (initRemoteTable)
@@ -103,7 +103,7 @@ main = do
   runProcess node $ forever $ do
     findPeers >>= mapM_ $ \peer -> nsend peer "echo-server" "hello!"
 
-{% endhighlight %}
+```
 
 [1]: http://hackage.haskell.org/package/distributed-process-simplelocalnet
 [2]: http://hackage.haskell.org/package/distributed-process-azure

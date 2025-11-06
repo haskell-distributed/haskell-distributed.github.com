@@ -1,0 +1,75 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.4.8'
+          cabal-version: '3.10.2.0'
+
+      - name: Cache Cabal
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cabal/packages
+            ~/.cabal/store
+            dist-newstyle
+          key: ${{ runner.os }}-cabal-${{ hashFiles('**/*.cabal', '**/cabal.project') }}
+          restore-keys: |
+            ${{ runner.os }}-cabal-
+
+      - name: Cache Hakyll
+        uses: actions/cache@v3
+        with:
+          path: _cache
+          key: ${{ runner.os }}-hakyll-${{ hashFiles('site.hs') }}
+          restore-keys: |
+            ${{ runner.os }}-hakyll-
+
+      - name: Install dependencies
+        run: cabal update && cabal build --only-dependencies
+
+      - name: Build site generator
+        run: cabal build
+
+      - name: Build website
+        run: cabal run site build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+  deploy:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

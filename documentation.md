@@ -156,12 +156,12 @@ required configuration and pass the returned opaque handle to the `Node` API
 in order to establish a new, connected, running node. More involved setups are,
 of course, possible; The simplest use of the API is thus
 
-{% highlight haskell %}
+```haskell
 main :: IO
 main = do
   Right transport <- createTransport "127.0.0.1" "10080" defaultTCPParameters
   node1 <- newLocalNode transport initRemoteTable
-{% endhighlight %}
+```
 
 Here we can see that the application depends explicitly on the
 `defaultTCPParameters` and `createTransport` functions from
@@ -207,9 +207,9 @@ Processes reside on nodes, which in our implementation map directly to the
 `Control.Distributed.Processes.Node` module. Given a configured
 `Network.Transport` backend, starting a new node is fairly simple:
 
-{% highlight haskell %}
+```haskell
 newLocalNode :: Transport -> IO LocalNode
-{% endhighlight %}
+```
 
 Once this function returns, the node will be *up and running* and able to
 interact with other nodes and host processes. It is possible to start more
@@ -219,10 +219,10 @@ backend.
 
 Given a new node, there are two primitives for starting a new process.
 
-{% highlight haskell %}
+```haskell
 forkProcess :: LocalNode -> Process () -> IO ProcessId
 runProcess  :: LocalNode -> Process () -> IO ()
-{% endhighlight %}
+```
 
 Once we've spawned some processes, they can communicate with one another
 using the messaging primitives provided by [distributed-process][distributed-process],
@@ -260,7 +260,7 @@ types, forcing us to undertake dynamic type checking at runtime.
 We create channels with a call to `newChan`, and send/receive on them using the
 `{send,receive}Chan` primitives:
 
-{% highlight haskell %}
+```haskell
 channelsDemo :: Process ()
 channelsDemo = do
     (sp, rp) <- newChan :: Process (SendPort String, ReceivePort String)
@@ -271,7 +271,7 @@ channelsDemo = do
     -- receive on a channel
     m <- receiveChan rp
     say $ show m
-{% endhighlight %}
+```
 
 Channels are particularly useful when you are sending a message that needs a
 response, because we know exactly where to look for the reply.
@@ -353,7 +353,7 @@ simply.
 
 ------
 
-{% highlight haskell %}
+```haskell
 demoAsync :: Process ()
 demoAsync = do
   -- spawning a new task is fairly easy - this one is linked
@@ -379,7 +379,7 @@ demoAsync = do
       (AsyncDone res) -> say (show res)  -- a finished task/result
       AsyncCancelled  -> say "it was cancelled!?"
       AsyncFailed (DiedException r) -> say $ "it failed: " ++ (show r)
-{% endhighlight %}
+```
 
 ------
 
@@ -407,7 +407,7 @@ The type of asynchronous task definitions comes in two flavours, one for
 local nodes which require no remote-table or static serialisation dictionary,
 and another for tasks you wish to execute on remote nodes.
 
-{% highlight haskell %}
+```haskell
 -- | A task to be performed asynchronously.
 data AsyncTask a =
     AsyncTask
@@ -423,7 +423,7 @@ data AsyncTask a =
       , asyncTaskProc :: Closure (Process a)
           -- ^ the task to be performed, wrapped in a closure environment
       }
-{% endhighlight %}
+```
 
 The API for `Async` is fairly rich, so reading the haddocks is suggested.
 
@@ -452,7 +452,7 @@ out the obvious differences. A process implemented with `ManagedProcess`
 can present a type safe API to its callers (and the server side code too!),
 although that's not its primary benefit. For a very simplified example:
 
-{% highlight haskell %}
+```haskell
 add :: ProcessId -> Double -> Double -> Process Double
 add sid x y = call sid (Add x y)
 
@@ -475,7 +475,7 @@ launchMathServer =
 
         divByZero :: Process (Either DivByZero Double)
         divByZero = return $ Left DivByZero
-{% endhighlight %}
+```
 
 Apart from the types and the imports, that is a complete definition. Whilst
 it's not so obvious what's going on here, the key point is that the invocation

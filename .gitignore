@@ -2,3 +2,15 @@
 .*.swp
 _site
 .DS_Store
+
+# Hakyll
+_cache/
+dist/
+dist-newstyle/
+.stack-work/
+site
+*.hi
+*.o
+cabal.project.local
+cabal.project.local~
+.ghc.environment.*

@@ -1,0 +1,39 @@
+.PHONY: build watch clean rebuild deploy help
+
+# Default target
+help:
+	@echo "Cloud Haskell Documentation Site - Hakyll"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  build    - Build the site generator and website"
+	@echo "  watch    - Start preview server (http://localhost:8000)"
+	@echo "  clean    - Clean generated files"
+	@echo "  rebuild  - Clean and rebuild everything"
+	@echo "  deploy   - Deploy to GitHub Pages"
+	@echo ""
+	@echo "First time setup:"
+	@echo "  cabal build"
+
+# Build the site generator first, then build the site
+build:
+	cabal build
+	cabal run site build
+
+# Watch for changes and serve locally
+watch:
+	cabal build
+	cabal run site watch
+
+# Clean generated files
+clean:
+	cabal run site clean
+	rm -rf _cache _site
+
+# Rebuild from scratch
+rebuild:
+	cabal run site rebuild
+
+# Deploy (builds _site directory)
+deploy: build
+	@echo "Deploy _site directory to your hosting service"
+	@echo "For GitHub Pages, commit and push to main/master branch"

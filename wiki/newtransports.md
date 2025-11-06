@@ -8,15 +8,15 @@ wiki: Guide
 
 On this page we describe the TCP Transport as an example for developers who wish to write their own instantiations of the Transport layer. The purpose of any such instantiation is to provide a function
 
-{% highlight haskell %}
+```haskell
 createTransport :: <transport specific arguments> -> IO (Either <transport specific error> Transport)
-{% endhighlight %}
+```
 
 For instance, the TCP transport offers
 
-{% highlight haskell %}
+```haskell
 createTransport :: N.HostName -> N.ServiceName -> IO (Either IOException Transport)
-{% endhighlight %}
+```
 
 This could be the only function that `Network.Transport.TCP` exports (the only reason it exports more is to provide an API for unit tests for the TCP transport, some of which work at a lower level). Your implementation will now be guided by the `Network.Transport` API. In particular, you will need to implement `newEndPoint`, which in turn will require you to implement `receive`, `connect`, etc. 
 
@@ -85,23 +85,23 @@ In the TCP transport `createTransport` needs to do some setup, `newEndPoint` bar
 
 Network.Transport API functions should not throw any exceptions, but declare explicitly in their types what errors can be returned. This means that we are very explicit about which errors can occur, and moreover map Transport-specific errors ("socket unavailable") to generic Transport errors ("insufficient resources"). A typical example is `connect` with type:
 
-{% highlight haskell %}
+```haskell
 connect :: EndPoint         -- ^ Local endpoint
         -> EndPointAddress  -- ^ Remote endpoint
         -> Reliability      -- ^ Desired reliability of the connection
         -> IO (Either (TransportError ConnectErrorCode) Connection)
-{% endhighlight %}
+```
 
 `TransportError` is defined as
 
-{% highlight haskell %}
+```haskell
 data TransportError error = TransportError error String
   deriving Typeable
-{% endhighlight %}
+```
 
 and has `Show` and `Exception` instances so that application code has the option of `throw`ing returned errors. Here is a typical example of error handling in the TCP transport; it is an internal function that does the initial part of the TCP connection setup: create a new socket, and the remote endpoint ID we're interested in and our own address, and then wait for and return the response:
 
-{% highlight haskell %}
+```haskell
 socketToEndPoint :: EndPointAddress -- ^ Our address 
                  -> EndPointAddress -- ^ Their address
                  -> IO (Either (TransportError ConnectErrorCode) (N.Socket, ConnectionRequestResponse)) 
@@ -128,13 +128,13 @@ socketToEndPoint (EndPointAddress ourAddress) theirAddress = try $ do
     invalidAddress        = TransportError ConnectNotFound . show 
     insufficientResources = TransportError ConnectInsufficientResources . show 
     failed                = TransportError ConnectFailed . show
-{% endhighlight %}
+```
 
 Note how exceptions get mapped to `TransportErrors` using `mapExceptionID`, which is defined in `Network.Transport.Internal` as
 
-{% highlight haskell %}
+```haskell
     mapExceptionIO :: (Exception e1, Exception e2) => (e1 -> e2) -> IO a -> IO a
     mapExceptionIO f p = catch p (throw . f)
-{% endhighlight %}
+```
 
 Moreover, the original exception is used as the `String` part of the `TransportError`. This means that application developers get transport-specific feedback, which is useful for debugging, not cannot take use this transport-specific information in their _code_, which would couple applications to tightly with one specific transport implementation.

@@ -52,7 +52,7 @@ scanning the mailbox, it is dequeued and returned, otherwise the caller
 (i.e., the calling thread/process) is blocked until a message of the expected
 type is delivered to the mailbox. Let's take a look at this in action:
 
-{% highlight haskell %}
+```haskell
 demo :: Process ()
 demo = do
     listener <- spawnLocal listen
@@ -69,7 +69,7 @@ demo = do
       (say . show) second
       (say . show) third
       send third ()
-{% endhighlight %}
+```
 
 This program will print `"hello"`, then `Nothing` and finally `pid://...`.
 The first `expect` - labelled "third" because of the order in which we
@@ -92,13 +92,13 @@ whole `receive` expression evaluates to.
 
 Consider the following snippet:
 
-{% highlight haskell %}
+```haskell
 usingReceive = do
   () <- receiveWait [
       match (\(s :: String) -> say s)
     , match (\(i :: Int)    -> say $ show i)
     ]
-{% endhighlight %}
+```
 
 Note that each of the matches in the list must evaluate to the same type,
 as the type signature indicates: `receiveWait :: [Match b] -> Process b`.
@@ -125,26 +125,26 @@ simply dequeues _any_ messages it receives and forwards them to some other proce
 In order to dequeue messages regardless of their type, this code relies on the
 `matchAny` primitive, which has the following type:
 
-{% highlight haskell %}
+```haskell
 matchAny :: forall b. (Message -> Process b) -> Match b
-{% endhighlight %}
+```
 
 Since forwarding _raw messages_ (without decoding them first) is a common pattern
 in Cloud Haskell programs, there is also a primitive to do that for us:
 
-{% highlight haskell %}
+```haskell
 forward :: Message -> ProcessId -> Process ()
-{% endhighlight %}
+```
 
 Given these types, we can see that in order to combine `matchAny` with `forward`
 we need to either _flip_ `forward` and apply the `ProcessId` (leaving us with
 the required type `Message -> Process b`) or use a lambda - the actual implementation
 does the latter and looks like this:
 
-{% highlight haskell %}
+```haskell
 relay :: ProcessId -> Process ()
 relay !pid = forever' $ receiveWait [ matchAny (\m -> forward m pid) ]
-{% endhighlight %}
+```
 
 This is pretty useful, but since `matchAny` operates on the raw `Message` type,
 we're limited in what we can do with the messages we receive. In order to delve
@@ -154,11 +154,11 @@ the result to see whether the decoding succeeds or not. There are two primitives
 we can use to that effect: `unwrapMessage` and `handleMessage`. Their types look like
 this:
 
-{% highlight haskell %}
+```haskell
 unwrapMessage :: forall m a. (Monad m, Serializable a) => Message -> m (Maybe a)
 
 handleMessage :: forall m a b. (Monad m, Serializable a) => Message -> (a -> m b) -> m (Maybe b)
-{% endhighlight %}
+```
 
 Of the two, `unwrapMessage` is the simpler, taking a raw `Message` and evaluating to
 `Maybe a` before returning that value in the monad `m`. If the type of the raw `Message`
@@ -175,9 +175,9 @@ evaluates some input of type `a` and returns `Process Bool`, allowing us to run 
 `Process` code in order to decide whether or not the `a` is eligible to be forwarded to
 the relay `ProcessId`. The type of `proxy` is thus:
 
-{% highlight haskell %}
+```haskell
 proxy :: Serializable a => ProcessId -> (a -> Process Bool) -> Process ()
-{% endhighlight %}
+```
 
 Since `matchAny` operates on `(Message -> Process b)` and `handleMessage` operates on
 `a -> Process b` we can compose these to make our proxy server. We must not forward
@@ -185,7 +185,7 @@ messages for which the predicate function evaluates to `Just False`, nor can we 
 forward messages which the predicate function is unable to evaluate due to type
 incompatibility. This leaves us with the definition found in distributed-process:
 
-{% highlight haskell %}
+```haskell
 proxy pid proc = do
   receiveWait [
       matchAny (\m -> do
@@ -196,7 +196,7 @@ proxy pid proc = do
                      Nothing    -> return ()) -- un-routable / cannot decode
     ]
   proxy pid proc
-{% endhighlight %}
+```
 
 Beyond simple relays and proxies, the raw message handling capabilities available in
 distributed-process can be utilised to develop highly generic message processing code.
@@ -246,7 +246,7 @@ be busy processing other events. On the other hand, the [`die`][7] primitive thr
 In practise, this means the following two functions could behave quite differently at
 runtime:
 
-{% highlight haskell %}
+```haskell
 
 -- this will never print anything...
 demo1 = die "Boom" >> expect >>= say
@@ -256,7 +256,7 @@ demo2 = do
   self <- getSelfPid
   exit self "Boom"
   expect >>= say
-{% endhighlight %}
+```
 
 The `ProcessExitException` type holds a _reason_ field, which is serialised as a raw `Message`.
 This exception type is exported, so it is possible to catch these _exit signals_ and decide how
@@ -283,14 +283,14 @@ of the type it is waiting for). Even though the child terminates "normally", our
 is also terminated since `link` will _link the lifetime of two processes together_ regardless
 of exit reasons.
 
-{% highlight haskell %}
+```haskell
 demo = do
   pid <- spawnLocal $ expect >>= return
   link pid
   send pid ()
   () <- expect
   return ()
-{% endhighlight %}
+```
 
 The medium that link failures uses to signal exit conditions is the same as exit and kill
 signals - asynchronous exceptions. Once again, it is a bad idea to rely on this (not least
@@ -312,7 +312,7 @@ monitors can be used to determine both when and _how_ a process has terminated. 
 away in distributed-process-extras, the `linkOnFailure` primitive works in exactly this
 way, only terminating the caller if the subject terminates abnormally. Let's take a look...
 
-{% highlight haskell %}
+```haskell
 linkOnFailure them = do
   us <- getSelfPid
   tid <- liftIO $ myThreadId
@@ -330,7 +330,7 @@ linkOnFailure them = do
     case reason of
       DiedNormal -> return ()
       _ -> liftIO $ throwTo tid (ProcessLinkException us reason)
-{% endhighlight %}
+```
 
 As we can see, this code makes use of monitors to track both processes involved in the
 link. In order to track _both_ processes and react to changes in their status, it is
@@ -384,7 +384,7 @@ This example is a bit contrived and over-simplified but
 illustrates the concept. Consider the `fetchUser` function below, it runs in the `AppProcess`
 monad which provides the configuration settings required to connect to the database:
 
-{% highlight haskell %}
+```haskell
 
 import Data.ByteString (ByteString)
 import Control.Monad.Reader
@@ -414,7 +414,7 @@ openDB = do
 closeDB :: DB.Connection -> AppProcess ()
 closeDB db = liftIO (DB.close db)
 
-{% endhighlight %}
+```
 
 So this would mostly work but it is not complete. What happens if an exception
 is thrown by the `query` function? Your open database handle may not be
@@ -422,14 +422,14 @@ closed. Typically we manage this with the [bracket][brkt] function.
 
 In the base library, [bracket][brkt] is defined in Control.Exception with this signature:
 
-{% highlight haskell %}
+```haskell
 
 bracket :: IO a	       --^ computation to run first ("acquire resource")
         -> (a -> IO b) --^ computation to run last ("release resource")
         -> (a -> IO c) --^ computation to run in-between
 	-> IO c
 
-{% endhighlight %}
+```
 
 Great! We pass an IO action that acquires a resource; `bracket` passes that
 resource to a function which takes the resource and runs another action.
@@ -447,7 +447,7 @@ It is perfectly possible to write our own bracket; `distributed-process` does th
 for the `Process` monad (which is itself a newtyped ReaderT stack). Here is how that is done:
 
 
-{% highlight haskell %}
+```haskell
 -- | Lift 'Control.Exception.bracket'
 bracket :: Process a -> (a -> Process b) -> (a -> Process c) -> Process c
 bracket before after thing =
@@ -473,7 +473,7 @@ mask p = do
 onException :: Process a -> Process b -> Process a
 onException p what = p `catch` \e -> do _ <- what
                                         liftIO $ throwIO (e :: SomeException)
-{% endhighlight %}
+```
 
 `distributed-process` needs to do this sort of thing to keep its dependency
 list small, but do we really want to write this for every transformer stack
@@ -491,7 +491,7 @@ explanation written by Michael Snoyman which is available [here][mctrlt].
 in the Haskell base library. For example, [Control.Exception.Lifted][lexc] has a definition of
 bracket that looks like this:
 
-{% highlight haskell %}
+```haskell
 
 bracket :: MonadBaseControl IO m
         => m a	       --^ computation to run first ("acquire resource")
@@ -499,7 +499,7 @@ bracket :: MonadBaseControl IO m
         -> (a -> m c)  --^ computation to run in-between
         -> m c
 
-{% endhighlight %}
+```
 
 It is just the same as the version found in base, except it is generalized to work
 with actions in any monad that implements [MonadBaseControl IO][mbc]. [monad-control][mctrl] defines
@@ -511,7 +511,7 @@ provides orphan instances of the `Process` type for both [MonadBase IO][mb] and 
 After importing these, we can rewrite our `fetchUser` function to use the instance of bracket
 provided by [lifted-base][lbase].
 
-{% highlight haskell %}
+```haskell
 
 -- ...
 import Control.Distributed.Process.MonadBaseControl ()
@@ -526,7 +526,7 @@ fetchUser email =
           	 $ \db -> liftIO $ DB.query db email
 
 
-{% endhighlight %}
+```
 
 [lifted-base][lbase] also provides conveniences like [MVar][lmvar] and other concurrency primitives that
 operate in [MonadBase IO][mb]. One benefit here is that your code is not sprinkled with

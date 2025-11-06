@@ -38,7 +38,7 @@ also provides hooks for error handling (in case of either server code crashing
 _or_ exit signals dispatched to the server process from elsewhere) and _cleanup_
 code to be run on termination/shutdown.
 
-{% highlight haskell %}
+```haskell
 myServer :: ProcessDefinition MyStateType
 myServer =
   ProcessDefinition {
@@ -75,7 +75,7 @@ myServer =
     , unhandledMessagePolicy = Drop -- Terminate | (DeadLetter ProcessId)
     }
 
-{% endhighlight %}
+```
 
 When defining a protocol between client and server, we typically decide on
 a set of types the server will handle and possibly maps these to replies we
@@ -112,7 +112,7 @@ that math server that does just that:
 
 ----
 
-{% highlight haskell %}
+```haskell
 module MathServer
   ( -- client facing API
     add
@@ -151,7 +151,7 @@ launchMathServer =
     , unhandledMessagePolicy = Drop
     }
   in spawnLocal $ serve () (statelessInit Infinity) server >> return ()
-{% endhighlight %}
+```
 
 
 This style of programming will already be familiar if you've used some
@@ -177,7 +177,7 @@ make the server code any prettier (since it has to reply to the channel
 explicitly, rather than just evaluating to a result), it does reduce the
 likelihood of runtime errors somewhat.
 
-{% highlight haskell %}
+```haskell
 -- This is the only way clients can get a message through to us that
 -- we will respond to, and since we control the type(s), there is no
 -- risk of decoding errors on the server. The /call/ API ensures that
@@ -194,7 +194,7 @@ launchMathServer =
     , unhandledMessagePolicy = Drop
     }
   in spawnLocal $ serve () (statelessInit Infinity) server >> return ()
-{% endhighlight %}
+```
 
 Ensuring that only valid types are sent to the server is relatively simple,
 given that we do not expose the client directly to `call` and write our own
@@ -220,7 +220,7 @@ this function in a test/demo application, you'll need to block the main
 thread for a while to wait for the server to receive the message and print
 out the result.
 
-{% highlight haskell %}
+```haskell
 
 printSum :: ProcessId -> Double -> Double -> Process ()
 printSum sid = cast sid . Add
@@ -233,7 +233,7 @@ launchMathServer =
     , unhandledMessagePolicy = Drop
     }
   in spawnLocal $ serve () (statelessInit Infinity) server >> return ()
-{% endhighlight %}
+```
 
 
 Of course this is a toy example - why defer simple computations like addition
@@ -278,7 +278,7 @@ manner suits them: The type of a task will be `Closure (Process a)` and
 the server will explicitly return an /either/ value with `Left String`
 for errors and `Right a` for successful results.
 
-{% highlight haskell %}
+```haskell
 -- enqueues the task in the pool and blocks
 -- the caller until the task is complete
 executeTask :: forall s a . (Addressable s, Serializable a)
@@ -286,7 +286,7 @@ executeTask :: forall s a . (Addressable s, Serializable a)
             -> Closure (Process a)
             -> Process (Either String a)
 executeTask sid t = call sid t
-{% endhighlight %}
+```
 
 Remember that in Cloud Haskell, the only way to communicate with a process
 (apart from introducing scoped concurrency primitives like `MVar` or using
@@ -337,9 +337,9 @@ run to completion) and communicate the result (or failure) to the original calle
 This means our pool state will need to be parameterised by the result type it will
 accept in its closures. So now we have the beginnings of our state type:
 
-{% highlight haskell %}
+```haskell
 data BlockingQueue a = BlockingQueue
-{% endhighlight %}
+```
 
 ### Making use of Async
 
@@ -365,17 +365,17 @@ size limit), we hold the client ref and the closure, but no monitor ref. We'll
 use a data structure that support FIFO ordering semantics for this, since that's
 probably what clients will expect of something calling itself a "queue".
 
-{% highlight haskell %}
+```haskell
 data BlockingQueue a = BlockingQueue {
     poolSize :: SizeLimit
   , active   :: [(MonitorRef, CallRef (Either ExitReason a), Async a)]
   , accepted :: Seq (CallRef (Either ExitReason a), Closure (Process a))
   }
-{% endhighlight %}
+```
 
 Our queue-like behaviour is fairly simple to define using `Data.Sequence`:
 
-{% highlight haskell %}
+```haskell
 enqueue :: Seq a -> a -> Seq a
 enqueue s a = a <| s
 
@@ -387,7 +387,7 @@ getR s =
   case (viewr s) of
     EmptyR -> Nothing
     a      -> Just a
-{% endhighlight %}
+```
 
 
 Now, to turn that `Closure` environment into a thunk we can evaluate, we'll use the
@@ -397,11 +397,11 @@ the async API in detail here, except to point out that the call to `async` spawn
 new process to do the actual work and returns a handle that we can use to query for
 the result.
 
-{% highlight haskell %}
+```haskell
 proc <- unClosure task'
 asyncHandle <- async proc
 ref <- monitorAsync asyncHandle
-{% endhighlight %}
+```
 
 We can now implement the `acceptTask` function, which the server will use to handle
 submitted tasks. The signature of our function must be compatible with the message
@@ -418,7 +418,7 @@ with a possible reply to one of the `call` derivatives. Since we're deferring ou
 until later, we will use `noReply_`, which creates a `ProcessAction` for us, telling
 the server to continue receiving messages.
 
-{% highlight haskell %}
+```haskell
 storeTask :: Serializable a
           => BlockingQueue a
           -> CallRef (Either ExitReason a)
@@ -442,7 +442,7 @@ acceptTask s@(BlockingQueue sz' runQueue taskQueue) from task' =
       ref <- monitorAsync asyncHandle
       let taskEntry = (ref, from, asyncHandle)
       return s { active = (taskEntry:runQueue) }
-{% endhighlight %}
+```
 
 If we're at capacity, we add the task (and caller) to the `accepted` queue,
 otherwise we launch and monitor the task using `async` and stash the monitor
@@ -481,7 +481,7 @@ and since there's no expected reply, as with `cast`, we simply return a `Process
 telling the server what to do next - in this case, to `continue` reading from the
 mailbox.
 
-{% highlight haskell %}
+```haskell
 taskComplete :: forall a . Serializable a
              => BlockingQueue a
              -> ProcessMonitorNotification
@@ -521,7 +521,7 @@ deleteFromRunQueue :: (MonitorRef, CallRef (Either ExitReason a), Async a)
                    -> [(MonitorRef, CallRef (Either ExitReason a), Async a)]
                    -> [(MonitorRef, CallRef (Either ExitReason a), Async a)]
 deleteFromRunQueue c@(p, _, _) runQ = deleteBy (\_ (b, _, _) -> b == p) c runQ
-{% endhighlight %}
+```
 
 We've dealt with mapping the `AsyncResult` to `Either` values, which we *could* have
 left to the caller, but this makes the client facing API much simpler to work with.
@@ -543,14 +543,14 @@ In order to spell things out for the compiler, we need to put a type signature
 in place at the call site for `storeTask`, so our final construct for that
 handler is thus:
 
-{% highlight haskell %}
+```haskell
 handleCallFrom (\s f (p :: Closure (Process a)) -> storeTask s f p)
-{% endhighlight %}
+```
 
 No such thing is required for `taskComplete`, as there's no ambiguity about its
 type. Our process definition is now finished, and here it is:
 
-{% highlight haskell %}
+```haskell
 defaultProcess {
     apiHandlers = [
             handleCallFrom (\s f (p :: Closure (Process a)) -> storeTask s f p)
@@ -558,7 +558,7 @@ defaultProcess {
     ]
   , infoHandlers = [ handleInfo taskComplete ]
   }
-{% endhighlight %}
+```
 
 Starting the server takes a bit of work: `ManagedProcess` provides several
 utility functions to help with spawning and running processes. The `serve`
@@ -567,7 +567,7 @@ that must generate the initial state and set up the server's receive timeout,
 then the process definition which we've already encountered. For more details
 about starting managed processes, see the haddocks.
 
-{% highlight haskell %}
+```haskell
 run :: forall a . (Serializable a)
          => Process (InitResult (BlockingQueue a))
          -> Process ()
@@ -585,25 +585,25 @@ pool :: forall a . Serializable a
      => SizeLimit
      -> Process (InitResult (BlockingQueue a))
 pool sz' = return $ InitOk (BlockingQueue sz' [] Seq.empty) Infinity
-{% endhighlight %}
+```
 
 ### Putting it all together
 
 Defining tasks is as simple as making them remote-worthy:
 
-{% highlight haskell %}
+```haskell
 sampleTask :: (TimeInterval, String) -> Process String
 sampleTask (t, s) = sleep t >> return s
 
 $(remotable ['sampleTask])
-{% endhighlight %}
+```
 
 And executing them is just as simple too.
 
-{% highlight haskell %}
+```haskell
 tsk <- return $ ($(mkClosure 'sampleTask) (seconds 2, "foobar"))
 executeTask taskQueuePid tsk
-{% endhighlight %}
+```
 
 Starting up the server itself locally or on a remote node, is just a matter of
 combining `spawn` or `spawnLocal` with `start`. We can go a step further though,
@@ -621,17 +621,17 @@ able to pass this handle to the managed process `call` API, so we define an
 instance of the `Resolvable` typeclass for it, which makes a (default) instance of
 `Routable` available, which is exactly what `call` is expecting:
 
-{% highlight haskell %}
+```haskell
 newtype TaskQueue a = TaskQueue { unQueue :: ProcessId }
 
 instance Resolvable (TaskQueue a) where
   resolve = return . unQueue
-{% endhighlight %}
+```
 
 Finally, we write a `start` function that returns this handle and change the
 signature of `executeTask` to match it:
 
-{% highlight haskell %}
+```haskell
 start :: forall a . (Serializable a)
       => SizeLimit
       -> Process (TaskQueue a)
@@ -644,7 +644,7 @@ executeTask :: (Serializable a)
             -> Closure (Process a)
             -> Process (Either ExitReason a)
 executeTask sid t = call sid t
-{% endhighlight %}
+```
 
 ----------
 
