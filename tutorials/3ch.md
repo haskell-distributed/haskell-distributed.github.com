@@ -93,8 +93,11 @@ whole `receive` expression evaluates to.
 Consider the following snippet:
 
 {% highlight haskell %}
-usingReceive = do
-  () <- receiveWait [
+{-# LANGUAGE ScopedTypeVariables #-}
+
+usingReceive :: Process ()
+usingReceive =
+  receiveWait [
       match (\(s :: String) -> say s)
     , match (\(i :: Int)    -> say $ show i)
     ]
@@ -139,7 +142,9 @@ forward :: Message -> ProcessId -> Process ()
 Given these types, we can see that in order to combine `matchAny` with `forward`
 we need to either _flip_ `forward` and apply the `ProcessId` (leaving us with
 the required type `Message -> Process b`) or use a lambda - the actual implementation
-does the latter and looks like this:
+does the latter and looks like this (`forever'` comes from
+distributed-process-extras, and the bang pattern needs the `BangPatterns`
+extension):
 
 {% highlight haskell %}
 relay :: ProcessId -> Process ()
@@ -293,10 +298,8 @@ demo = do
 {% endhighlight %}
 
 The medium that link failures uses to signal exit conditions is the same as exit and kill
-signals - asynchronous exceptions. Once again, it is a bad idea to rely on this (not least
-because it might change in some future release) and the exception type (`ProcessLinkException`)
-is not exported so as to prevent developers from abusing exception handling code in this
-special case. Since link exit signals cannot be caught directly, if you find yourself wanting
+signals - asynchronous exceptions. Once again, it is a bad idea to rely on this, not least
+because it might change in some future release. If you find yourself wanting
 to _trap_ a link failure, you probably want to use a monitor instead.
 
 Whilst the built-in `link` primitive terminates the link-ee regardless of exit reason,
@@ -386,7 +389,6 @@ monad which provides the configuration settings required to connect to the datab
 
 {% highlight haskell %}
 
-import Data.ByteString (ByteString)
 import Control.Monad.Reader
 
 -- imagine we have some database library

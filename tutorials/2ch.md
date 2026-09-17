@@ -28,11 +28,12 @@ import System.Environment (getArgs)
 import Control.Distributed.Process
 import Control.Distributed.Process.Node (initRemoteTable, runProcess)
 import Control.Distributed.Process.Backend.SimpleLocalnet
-import Control.Monad (forever, forM_)
+import Control.Monad (forM_)
 
+main :: IO ()
 main = do
   [host, port] <- getArgs
-  
+
   backend <- initializeBackend host port initRemoteTable
   node    <- newLocalNode backend
   peers   <- findPeers backend 1000000
@@ -89,20 +90,24 @@ Here is an example of node discovery using the [`distributed-process-p2p`][3]
 backend:
 
 {% highlight haskell %}
-import System.Environment (getArgs)
-import Control.Distributed.Process
+import Control.Concurrent (threadDelay)
+import Control.Distributed.Backend.P2P (bootstrap, makeNodeId, nsendPeers)
+import Control.Distributed.Process (liftIO)
 import Control.Distributed.Process.Node (initRemoteTable)
-import Control.Distributed.Process.Backend.P2P
-import Control.Monad (forever, mapM_)
+import Control.Monad (forever)
+import System.Environment (getArgs)
 
+main :: IO ()
 main = do
-  [host, port] <- getArgs
-  
-  backend <- initializeBackend host port initRemoteTable
-  node    <- newLocalNode backend
-  runProcess node $ forever $ do
-    findPeers >>= mapM_ $ \peer -> nsend peer "echo-server" "hello!"
+  (host:port:seeds) <- getArgs
 
+  -- `bootstrap` creates the node, starts the peer controller seeded with the
+  -- addresses we were given, and then runs the supplied Process action.
+  bootstrap host port (\sn -> (host, sn)) initRemoteTable (map makeNodeId seeds) $
+    forever $ do
+      -- send to everything registered as "echo-server" on every known peer
+      nsendPeers "echo-server" "hello!"
+      liftIO $ threadDelay 1000000
 {% endhighlight %}
 
 [1]: http://hackage.haskell.org/package/distributed-process-simplelocalnet

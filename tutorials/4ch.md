@@ -8,9 +8,11 @@ title: 4. Managed Process Tutorial
 ### Introduction
 
 The source code for this tutorial is based on the `BlockingQueue` API
-from distributed-process-task and can be accessed [here][1].
-Please note that this tutorial is based on the stable (master) branch
-of [distributed-process-task][3].
+from distributed-process-task and can be accessed [here][1]. That package
+has not been released for a current GHC, so the code below is written to
+stand on its own: it needs only distributed-process,
+[distributed-process-async][6], distributed-process-client-server and
+distributed-process-extras.
 
 ### Managed Processes
 
@@ -61,12 +63,18 @@ myServer =
       , handleRaw  myFunctionThatHandlesRawMessages
       ]
 
+      -- handle messages arriving on a control channel; see tutorial 6
+    , externHandlers = []
+
       -- what should we do about exit signals?
     , exitHandlers = [
         -- a list of ExitSignalDispatcher, derived from calling
         -- handleExit with a suitable function, e.g.,
         handleExit myExitHandlingFunction
       ]
+
+      -- what should I do if my receive times out?
+    , timeoutHandler = myTimeoutFunction
 
       -- what should I do just before stopping?
     , shutdownHandler = myShutdownFunction
@@ -140,7 +148,7 @@ instance Binary Add where
 -- killed by another process), the client will get an exit signal also.
 --
 add :: ProcessId -> Double -> Double -> Process Double
-add sid = call sid . Add
+add sid x y = call sid (Add x y)
 
 -- server side code
 
@@ -185,12 +193,13 @@ likelihood of runtime errors somewhat.
 -- killed by another process), the client will get an exit signal also.
 --
 add :: ProcessId -> Double -> Double -> Process Double
-add sid = syncCallChan sid . Add
+add sid x y = syncCallChan sid (Add x y)
 
 launchMathServer :: Process ProcessId
 launchMathServer =
   let server = statelessProcess {
-      apiHandlers = [ handleRpcChan_ (\chan (Add x y) -> sendChan chan (x + y)) ]
+      apiHandlers = [ handleRpcChan_ (\chan (Add x y) s ->
+                                        sendChan chan (x + y) >> continue_ s) ]
     , unhandledMessagePolicy = Drop
     }
   in spawnLocal $ serve () (statelessInit Infinity) server >> return ()
@@ -223,13 +232,15 @@ out the result.
 {% highlight haskell %}
 
 printSum :: ProcessId -> Double -> Double -> Process ()
-printSum sid = cast sid . Add
+printSum sid x y = cast sid (Add x y)
 
 launchMathServer :: Process ProcessId
 launchMathServer =
   let server = statelessProcess {
-      apiHandlers = [ handleRpcChan_ (\chan (Add x y) -> sendChan chan (x + y) >> continue_)
-                    , handleCast_ (\(Add x y) -> liftIO $ putStrLn $ show (x + y) >> continue_) ]
+      apiHandlers = [ handleRpcChan_ (\chan (Add x y) s ->
+                                        sendChan chan (x + y) >> continue_ s)
+                    , handleCast_ (\(Add x y) s ->
+                                     liftIO (print (x + y)) >> continue_ s) ]
     , unhandledMessagePolicy = Drop
     }
   in spawnLocal $ serve () (statelessInit Infinity) server >> return ()
@@ -272,10 +283,12 @@ We'll start by thinking about the types we need to consume in the server
 and client processes: the tasks we're being asked to perform.
 
 To submit a task, our clients will submit an action in the process
-monad, wrapped in a `Closure` environment. We will use the `Addressable`
+monad, wrapped in a `Closure` environment. The code from here on uses explicit
+`forall`s and type annotations in patterns, so the module needs the
+`ScopedTypeVariables` extension. We will use the `Addressable`
 typeclass to allow clients to specify the server's location in whatever
 manner suits them: The type of a task will be `Closure (Process a)` and
-the server will explicitly return an /either/ value with `Left String`
+the server will explicitly return an /either/ value with `Left ExitReason`
 for errors and `Right a` for successful results.
 
 {% highlight haskell %}
@@ -284,7 +297,7 @@ for errors and `Right a` for successful results.
 executeTask :: forall s a . (Addressable s, Serializable a)
             => s
             -> Closure (Process a)
-            -> Process (Either String a)
+            -> Process (Either ExitReason a)
 executeTask sid t = call sid t
 {% endhighlight %}
 
@@ -301,7 +314,7 @@ receiving and processing other messages in the meantime. As far as the client
 is concerned, it is simply waiting for a reply. Note that the `call` primitive
 is implemented so that messages from other processes cannot interleave with
 the server's response. This is very important, since another message of type
-`Either String a` could theoretically arrive in our mailbox from somewhere
+`Either ExitReason a` could theoretically arrive in our mailbox from somewhere
 else whilst we're receiving, therefore `call` transparently tags the call
 message and awaits a specific reply from the server (containing the same
 tag). These tags are guaranteed to be unique across multiple nodes, since
@@ -321,7 +334,7 @@ died before replying). Other variations of `call` exist that return a `Maybe` or
 an `Either ExitReason a` instead of making the caller's process exit.
 
 Note that if the server replies to this call with some other type (i.e., a type
-other than `Either String a`) then our client will be blocked indefinitely!
+other than `Either ExitReason a`) then our client will be blocked indefinitely!
 We could alleviate this by using a typed channel as we saw previously with our
 math server, but there's little point since we're in total charge of both the
 client and the server's code.
@@ -391,15 +404,15 @@ getR s =
 
 
 Now, to turn that `Closure` environment into a thunk we can evaluate, we'll use the
-built in `unClosure` function, and we'll pass the thunk to `async` and get back
-a handle to the running async task, which we'll then need to monitor. We won't cover
+built in `unClosure` function, and we'll pass the thunk to `async` (wrapped up
+with `task`) and get back a handle to the running async task, which we'll then need to monitor. We won't cover
 the async API in detail here, except to point out that the call to `async` spawns a
 new process to do the actual work and returns a handle that we can use to query for
 the result.
 
 {% highlight haskell %}
 proc <- unClosure task'
-asyncHandle <- async proc
+asyncHandle <- async (task proc)
 ref <- monitorAsync asyncHandle
 {% endhighlight %}
 
@@ -438,7 +451,7 @@ acceptTask s@(BlockingQueue sz' runQueue taskQueue) from task' =
       return $ s { accepted = enqueue taskQueue (from, task') }
     False -> do
       proc <- unClosure task'
-      asyncHandle <- async proc
+      asyncHandle <- async (task proc)
       ref <- monitorAsync asyncHandle
       let taskEntry = (ref, from, asyncHandle)
       return s { active = (taskEntry:runQueue) }
@@ -523,6 +536,31 @@ deleteFromRunQueue :: (MonitorRef, CallRef (Either ExitReason a), Async a)
 deleteFromRunQueue c@(p, _, _) runQ = deleteBy (\_ (b, _, _) -> b == p) c runQ
 {% endhighlight %}
 
+Our server will also answer a request for its own statistics, which gives us an
+example of an ordinary, immediate `call` handler to sit alongside the deferred
+one:
+
+{% highlight haskell %}
+data StatsReq = StatsReq
+  deriving (Typeable, Generic)
+instance Binary StatsReq where
+
+data BlockingQueueStats = BlockingQueueStats {
+    maxJobs    :: Int
+  , activeJobs :: Int
+  , queuedJobs :: Int
+  } deriving (Typeable, Generic, Show)
+instance Binary BlockingQueueStats where
+
+poolStatsRequest :: BlockingQueue a
+                 -> StatsReq
+                 -> Process (ProcessReply BlockingQueueStats (BlockingQueue a))
+poolStatsRequest st StatsReq =
+  reply (BlockingQueueStats (poolSize st)
+                            (length $ active st)
+                            (Seq.length $ accepted st)) st
+{% endhighlight %}
+
 We've dealt with mapping the `AsyncResult` to `Either` values, which we *could* have
 left to the caller, but this makes the client facing API much simpler to work with.
 Note that our use of an association list for the active _run queue_ makes for an
@@ -540,11 +578,12 @@ cannot construct a `Dispatcher` ourselves, but a range of functions in the
 defined, to the correct type.
 
 In order to spell things out for the compiler, we need to put a type signature
-in place at the call site for `storeTask`, so our final construct for that
-handler is thus:
+in place at the call site for `storeTask`. Note also the argument order that
+`handleCallFrom` expects: the `CallRef` comes first, then the state, then the
+message. Our final construct for that handler is thus:
 
 {% highlight haskell %}
-handleCallFrom (\s f (p :: Closure (Process a)) -> storeTask s f p)
+handleCallFrom (\f s (p :: Closure (Process a)) -> storeTask s f p)
 {% endhighlight %}
 
 No such thing is required for `taskComplete`, as there's no ambiguity about its
@@ -553,7 +592,7 @@ type. Our process definition is now finished, and here it is:
 {% highlight haskell %}
 defaultProcess {
     apiHandlers = [
-            handleCallFrom (\s f (p :: Closure (Process a)) -> storeTask s f p)
+            handleCallFrom (\f s (p :: Closure (Process a)) -> storeTask s f p)
           , handleCall poolStatsRequest
     ]
   , infoHandlers = [ handleInfo taskComplete ]
@@ -575,7 +614,7 @@ run init' = ManagedProcess.serve () (\() -> init') poolServer
   where poolServer =
           defaultProcess {
               apiHandlers = [
-                 handleCallFrom (\s f (p :: Closure (Process a)) -> storeTask s f p)
+                 handleCallFrom (\f s (p :: Closure (Process a)) -> storeTask s f p)
                , handleCall poolStatsRequest
                ]
             , infoHandlers = [ handleInfo taskComplete ]
@@ -606,7 +645,7 @@ executeTask taskQueuePid tsk
 {% endhighlight %}
 
 Starting up the server itself locally or on a remote node, is just a matter of
-combining `spawn` or `spawnLocal` with `start`. We can go a step further though,
+combining `spawn` or `spawnLocal` with `run`. We can go a step further though,
 and add a bit more type safety to our API by using an opaque handle to communicate
 with the server. The advantage of this is that it right now it is possible for
 a client to send a `Closure` to the server with a return type different from the
@@ -618,14 +657,18 @@ By returning a handle to the server using a parameterised type, we can ensure th
 only closures returning a matching type are sent. To do so, we use a phantom type
 parameter and simply stash the real `ProcessId` in a newtype. We also need to be
 able to pass this handle to the managed process `call` API, so we define an
-instance of the `Resolvable` typeclass for it, which makes a (default) instance of
-`Routable` available, which is exactly what `call` is expecting:
+instance of the `Resolvable` typeclass for it. Both methods of `Routable` have
+default implementations in terms of `Resolvable`, so empty instances are enough
+to give us the `Addressable` constraint that `call` is expecting:
 
 {% highlight haskell %}
 newtype TaskQueue a = TaskQueue { unQueue :: ProcessId }
 
 instance Resolvable (TaskQueue a) where
-  resolve = return . unQueue
+  resolve = return . Just . unQueue
+
+instance Routable (TaskQueue a)
+instance Addressable (TaskQueue a)
 {% endhighlight %}
 
 Finally, we write a `start` function that returns this handle and change the
@@ -635,7 +678,10 @@ signature of `executeTask` to match it:
 start :: forall a . (Serializable a)
       => SizeLimit
       -> Process (TaskQueue a)
-start lim = spawnLocal (start $ pool lim) >>= return . TaskQueue
+start lim =
+  -- the annotation ties `run`'s result type to our phantom parameter
+  spawnLocal (run (pool lim :: Process (InitResult (BlockingQueue a))))
+    >>= return . TaskQueue
 
 -- .......
 
@@ -645,6 +691,11 @@ executeTask :: (Serializable a)
             -> Process (Either ExitReason a)
 executeTask sid t = call sid t
 {% endhighlight %}
+
+Remember that the remote table generated by `remotable` has to be handed to
+`newLocalNode`, exactly as in
+[tutorial 1](/tutorials/1ch.html#spawning-remote-processes), or `unClosure`
+will not be able to find `sampleTask` when the server tries to run it.
 
 ----------
 

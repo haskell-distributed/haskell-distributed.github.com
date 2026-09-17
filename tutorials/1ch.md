@@ -49,18 +49,19 @@ types that Cloud Haskell needs at a minimum in order to run.
 In `app/Main.hs`, we start with our imports:
 
 {% highlight haskell %}
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Control.Distributed.Process
 import Control.Distributed.Process.Node
+import Network.Transport.TCP
+  (createTransport, defaultTCPAddr, defaultTCPParameters)
 {% endhighlight %}
 
-Our TCP network transport backend needs an IP address and port to get started
-with:
+Our TCP network transport backend needs an address to listen on, which
+`defaultTCPAddr` builds from an IP address and a port:
 
 {% highlight haskell %}
 main :: IO ()
 main = do
-  Right t <- createTransport "127.0.0.1" "10501" defaultTCPParameters
+  Right t <- createTransport (defaultTCPAddr "127.0.0.1" "10501")  defaultTCPParameters
   node <- newLocalNode t initRemoteTable
   ....
 {% endhighlight %}
@@ -105,7 +106,8 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Control.Distributed.Process
 import Control.Distributed.Process.Node
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
+import Network.Transport.TCP
+  (createTransport, defaultTCPAddr, defaultTCPParameters)
 
 replyBack :: (ProcessId, String) -> Process ()
 replyBack (sender, msg) = send sender msg
@@ -115,7 +117,7 @@ logMessage msg = say $ "handling " ++ msg
 
 main :: IO ()
 main = do
-  Right t <- createTransport "127.0.0.1" "10501" defaultTCPParameters
+  Right t <- createTransport (defaultTCPAddr "127.0.0.1" "10501")  defaultTCPParameters
   node <- newLocalNode t initRemoteTable
   runProcess node $ do
     -- Spawn another worker on the local node
@@ -167,7 +169,7 @@ Processes may send any datum whose type implements the `Serializable`
 typeclass, defined as:
 
 {% highlight haskell %}
-class (Binary a, Typeable) => Serializable a
+class (Binary a, Typeable a) => Serializable a
 instance (Binary a, Typeable a) => Serializable a
 {% endhighlight %}
 
@@ -178,10 +180,12 @@ given by the compiler, and the `Binary` instance can be auto-generated
 too in most cases, e.g.:
 
 {% highlight haskell %}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-data T = T Int Char deriving (Generic, Typeable)
+import Data.Binary (Binary)
+import GHC.Generics (Generic)
+
+data T = T Int Char deriving (Generic)
 
 instance Binary T
 {% endhighlight %}
@@ -229,8 +233,8 @@ more details) and the easiest way to do this, is to let the library
 generate the relevant code for us. For example:
 
 {% highlight haskell %}
-sampleTask :: (TimeInterval, String) -> Process ()
-sampleTask (t, s) = sleep t >> say s
+sampleTask :: (Int, String) -> Process ()
+sampleTask (t, s) = liftIO (threadDelay (t * 1000000)) >> say s
 
 remotable ['sampleTask]
 {% endhighlight %}
@@ -240,7 +244,7 @@ The last line is a top-level Template Haskell splice. At the call site for
 `sampleTask` like so:
 
 {% highlight haskell %}
-($(mkClosure 'sampleTask) (seconds 2, "foobar"))
+($(mkClosure 'sampleTask) (1 :: Int, "foobar"))
 {% endhighlight %}
 
 The call to `remotable` implicitly generates a remote table by inserting
@@ -252,11 +256,11 @@ with a final, merged remote table for all modules in our program:
 {-# LANGUAGE TemplateHaskell #-}
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
 import Control.Distributed.Process
 import Control.Distributed.Process.Closure
 import Control.Distributed.Process.Node
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
+import Network.Transport.TCP
+  (createTransport, defaultTCPAddr, defaultTCPParameters)
 
 sampleTask :: (Int, String) -> Process ()
 sampleTask (t, s) = liftIO (threadDelay (t * 1000000)) >> say s
@@ -268,12 +272,12 @@ myRemoteTable = Main.__remoteTable initRemoteTable
 
 main :: IO ()
 main = do
-  Right transport <- createTransport "127.0.0.1" "10501" defaultTCPParameters
+  Right transport <- createTransport (defaultTCPAddr "127.0.0.1" "10501")  defaultTCPParameters
   node <- newLocalNode transport myRemoteTable
   runProcess node $ do
     us <- getSelfNode
     _ <- spawnLocal $ sampleTask (1 :: Int, "using spawnLocal")
-    pid <- spawn us $ $(mkClosure 'sampleTask) (1 :: Int, "using spawn")
+    _ <- spawn us $ $(mkClosure 'sampleTask) (1 :: Int, "using spawn")
     liftIO $ threadDelay 2000000
 {% endhighlight %}
 

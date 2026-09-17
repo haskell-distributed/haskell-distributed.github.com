@@ -8,7 +8,7 @@ title: Programming with Network.Transport
 
 This is a tutorial introduction to `Network.Transport`. To follow along,
 you should probably already be familiar with `Control.Concurrent`; in
-particular, the use of `fork` and `MVar`s. The code for the tutorial can
+particular, the use of `forkIO` and `MVar`s. The code for the tutorial can
 be downloaded as [tutorial-server.hs](/static/tutorial/tutorial-server.hs)
 and [tutorial-client.hs](/static/tutorial/tutorial-client.hs).
 
@@ -67,15 +67,19 @@ We will start with the client
 because it is simpler. We first need a bunch of imports:
 
 {% highlight haskell %}
+import Control.Monad (replicateM_)
+import Data.ByteString.Char8 (pack)
+import Network.Socket (withSocketsDo)
 import Network.Transport
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
-import Network.Socket.Internal (withSocketsDo)
-import System.Environment
-import Data.ByteString.Char8
-import Control.Monad
+import Network.Transport.TCP
+  (createTransport, defaultTCPAddr, defaultTCPParameters)
+import System.Environment (getArgs)
 {% endhighlight %}
 
-The client will consist of a single main function. [withSocketsDo](http://hackage.haskell.org/package/network-2.6.2.1/docs/Network-Socket-Internal.html#v:withSocketsDo) may be needed for Windows platform with old versions of network library. For compatibility with older versions on Windows, it is good practice to always call withSocketsDo (it's very cheap).
+The client will consist of a single main function.
+[withSocketsDo](https://hackage.haskell.org/package/network/docs/Network-Socket.html#v:withSocketsDo)
+is a no-op on modern versions of the `network` library, but it is harmless and
+cheap, so it is good practice to keep calling it.
 
 {% highlight haskell %}
 main :: IO ()
@@ -97,15 +101,17 @@ from `Network.Transport.TCP` (in this tutorial we will use the TCP instance of
 `Network.Transport`). The type of `createTransport` is:
 
 {% highlight haskell %}
-createTransport :: N.HostName -> N.ServiceName -> IO (Either IOException Transport)
+createTransport :: TCPAddr -> TCPParameters -> IO (Either IOException Transport)
 {% endhighlight %}
 
-(where `N` is an alias for `Network.Socket`). For the sake of this tutorial we
-are going to ignore all error handling, so we are going to assume it will return
-a `Right` transport:
+The `TCPAddr` says which address the transport should bind to and how it should
+advertise itself to its peers. For the common case - bind to this host and port,
+and tell peers to use the same - `defaultTCPAddr` builds one for us. For the sake
+of this tutorial we are also going to ignore all error handling, so we are going
+to assume it will return a `Right` transport:
 
 {% highlight haskell %}
-Right transport <- createTransport host port 
+Right transport <- createTransport (defaultTCPAddr host port) defaultTCPParameters
 {% endhighlight %}
 
 Next we need to create an EndPoint for the client. Again, we are going
@@ -128,13 +134,14 @@ lost) and ordered (messages will arrive in order). For the case of the TCP trans
 this makes no difference (_all_ connections are reliable and ordered), but this may
 not be true for other transports. 
 
-Sending on our new connection is very easy:
+Sending on our new connection is very easy. `send` takes an array of
+`ByteString`s, and returns an `Either` reporting whether the send succeeded,
+which we are ignoring here along with all the other error handling:
 
 {% highlight haskell %}
 send conn [pack "Hello world"]
 {% endhighlight %}
 
-(`send` takes as argument an array of `ByteString`s).
 Finally, we can close the connection:
 
 {% highlight haskell %}
@@ -160,15 +167,15 @@ That's it! Here is the entire client again:
 main :: IO ()
 main = withSocketsDo $ do
   [host, port, serverAddr] <- getArgs
-  Right transport <- createTransport host port 
+  Right transport <- createTransport (defaultTCPAddr host port) defaultTCPParameters
   Right endpoint  <- newEndPoint transport
 
   let addr = EndPointAddress (pack serverAddr)
   Right conn <- connect endpoint addr ReliableOrdered defaultConnectHints
-  send conn [pack "Hello world"]
+  _ <- send conn [pack "Hello world"]
   close conn
 
-  replicateM_ 3 $ receive endpoint >>= print 
+  replicateM_ 3 $ receive endpoint >>= print
 
   closeTransport transport
 {% endhighlight %}
@@ -180,13 +187,14 @@ is slightly more complicated, but only slightly. As with the client, we
 start with a bunch of imports:
 
 {% highlight haskell %}
+import Control.Concurrent (MVar, forkIO, newEmptyMVar, putMVar, readMVar)
+import Control.Exception (AsyncException(UserInterrupt), catchJust)
+import Data.Map (Map, delete, empty, insert, (!))
+import Network.Socket (withSocketsDo)
 import Network.Transport
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
-import Network.Socket.Internal (withSocketsDo)
-import Control.Concurrent
-import Data.Map
-import Control.Exception
-import System.Environment
+import Network.Transport.TCP
+  (createTransport, defaultTCPAddr, defaultTCPParameters)
+import System.Environment (getArgs)
 {% endhighlight %}
 
 We will write the main function first:
@@ -196,9 +204,9 @@ main :: IO ()
 main = withSocketsDo $ do
   [host, port]    <- getArgs
   serverDone      <- newEmptyMVar
-  Right transport <- createTransport host port defaultTCPParameters
+  Right transport <- createTransport (defaultTCPAddr host port) defaultTCPParameters
   Right endpoint  <- newEndPoint transport
-  forkIO $ echoServer endpoint serverDone 
+  _ <- forkIO $ echoServer endpoint serverDone
   putStrLn $ "Echo server started at " ++ show (address endpoint)
   readMVar serverDone `onCtrlC` closeTransport transport
 {% endhighlight %}
@@ -278,7 +286,7 @@ Finally, we need to define `onCtrlC`; `p onCtrlC q` will run `p`; if this is int
 onCtrlC :: IO a -> IO () -> IO a
 p `onCtrlC` q = catchJust isUserInterrupt p (const $ q >> p `onCtrlC` q)
   where
-    isUserInterrupt :: AsyncException -> Maybe () 
+    isUserInterrupt :: AsyncException -> Maybe ()
     isUserInterrupt UserInterrupt = Just ()
     isUserInterrupt _             = Nothing
 {% endhighlight %}

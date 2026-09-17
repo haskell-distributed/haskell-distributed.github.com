@@ -1,23 +1,21 @@
+import Control.Monad (replicateM_)
+import Data.ByteString.Char8 (pack)
+import Network.Socket (withSocketsDo)
 import Network.Transport
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
-import Network.Socket.Internal (withSocketsDo)
-import System.Environment
-import Control.Monad
-import Data.ByteString.Char8
+import Network.Transport.TCP
+  (createTransport, defaultTCPAddr, defaultTCPParameters)
+import System.Environment (getArgs)
 
 main :: IO ()
 main = withSocketsDo $ do
   [host, port, serverAddr] <- getArgs
-  Right transport <- createTransport host port defaultTCPParameters
+  Right transport <- createTransport (defaultTCPAddr host port)
+                                     defaultTCPParameters
   Right endpoint  <- newEndPoint transport
 
   let addr = EndPointAddress (pack serverAddr)
---  Right conn <- connect endpoint addr ReliableOrdered defaultConnectHints
-  x <- connect endpoint addr ReliableOrdered defaultConnectHints
-  let conn = case x of
-              Right conn -> conn
-              Left err -> error$ "Error connecting: "++show err
-  send conn [pack "Hello world"]
+  Right conn <- connect endpoint addr ReliableOrdered defaultConnectHints
+  _ <- send conn [pack "Hello world"]
   close conn
 
   replicateM_ 3 $ receive endpoint >>= print

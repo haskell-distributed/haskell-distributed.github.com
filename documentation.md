@@ -157,14 +157,15 @@ in order to establish a new, connected, running node. More involved setups are,
 of course, possible; The simplest use of the API is thus
 
 {% highlight haskell %}
-main :: IO
+main :: IO ()
 main = do
-  Right transport <- createTransport "127.0.0.1" "10080" defaultTCPParameters
+  Right transport <- createTransport (defaultTCPAddr "127.0.0.1" "10080")  defaultTCPParameters
   node1 <- newLocalNode transport initRemoteTable
+  runProcess node1 $ say "hello from a Cloud Haskell node"
 {% endhighlight %}
 
 Here we can see that the application depends explicitly on the
-`defaultTCPParameters` and `createTransport` functions from
+`defaultTCPAddr`, `defaultTCPParameters` and `createTransport` functions from
 `Network.Transport.TCP`, but little else. The application *can* make use
 of other `Network.Transport` APIs if required, but for the most part this
 is irrelevant and the application will interact with Cloud Haskell through
@@ -208,7 +209,7 @@ Processes reside on nodes, which in our implementation map directly to the
 `Network.Transport` backend, starting a new node is fairly simple:
 
 {% highlight haskell %}
-newLocalNode :: Transport -> IO LocalNode
+newLocalNode :: Transport -> RemoteTable -> IO LocalNode
 {% endhighlight %}
 
 Once this function returns, the node will be *up and running* and able to
@@ -358,8 +359,7 @@ demoAsync :: Process ()
 demoAsync = do
   -- spawning a new task is fairly easy - this one is linked
   -- so if the caller dies, the task is killed too
-  hAsync :: Async String
-  hAsync <- asyncLinked $ (expect >>= return) :: Process String
+  hAsync <- asyncLinked (task (expect :: Process String))
 
   -- there is a rich API of functions to query an async handle
   AsyncPending <- poll hAsync   -- not finished yet
@@ -370,15 +370,17 @@ demoAsync = do
   -- or cancel it and wait until it has exited
   -- cancelWait hAsync
 
-  -- we can wait on the task and timeout if it's still busy
-  Nothing <- waitTimeout (within 3 Seconds) hAsync
+  -- we can wait on the task and timeout if it's still busy.
+  -- note that waitTimeout counts in microseconds, hence asTimeout
+  Nothing <- waitTimeout (asTimeout $ seconds 3) hAsync
 
   -- or finally, we can block until the task is finished!
   asyncResult <- wait hAsync
   case asyncResult of
-      (AsyncDone res) -> say (show res)  -- a finished task/result
-      AsyncCancelled  -> say "it was cancelled!?"
-      AsyncFailed (DiedException r) -> say $ "it failed: " ++ (show r)
+      AsyncDone res -> say (show res)  -- a finished task/result
+      AsyncCancelled -> say "it was cancelled!?"
+      AsyncFailed (DiedException r) -> say $ "it failed: " ++ show r
+      other -> say $ "unexpected result: " ++ show other
 {% endhighlight %}
 
 ------
@@ -458,7 +460,7 @@ add sid x y = call sid (Add x y)
 
 divide :: ProcessId -> Double -> Double
           -> Process (Either DivByZero Double)
-divide sid x y = call sid (Divide x y )
+divide sid x y = call sid (Divide x y)
 
 launchMathServer :: Process ProcessId
 launchMathServer =
@@ -469,7 +471,7 @@ launchMathServer =
         , handleCall_   (\(Divide _ _) -> divByZero)
         ]
     }
-  in spawnLocal $ start () (statelessInit Infinity) server >> return ()
+  in spawnLocal $ serve () (statelessInit Infinity) server
   where handleDivide :: Divide -> Process (Either DivByZero Double)
         handleDivide (Divide x y) = return $ Right $ x / y
 

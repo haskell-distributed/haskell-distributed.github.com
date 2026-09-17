@@ -53,7 +53,8 @@ protocol is used.
 In its simplest guise, this technique simply employs the compiler to ensure
 that our clients only communicate with us in well-known ways. Let's take a
 look at this in action, revisiting the well-trodden _math server_ example
-from our previous tutorials:
+from our previous tutorials (the pattern in `add` needs the `RecordWildCards`
+extension):
 
 {% highlight haskell %}
 module MathServer
@@ -67,21 +68,23 @@ module MathServer
 import .... -- elided
 
 newtype MathServer = MathServer { mathServerPid :: ProcessId }
-  deriving (Typeable)
+  deriving (Generic)
+instance Binary MathServer where
 
 -- other types/details elided
 
 add :: MathServer -> Double -> Double -> Process Double
-add MathServer{..} = call mathServerPid . Add
+add MathServer{..} x y = call mathServerPid (Add x y)
 
 launchMathServer :: Process MathServer
 launchMathServer = launch >>= return . MathServer
-  where launch =
-    let server = statelessProcess {
-      apiHandlers = [ handleCall_ (\(Add x y) -> return (x + y)) ]
-    , unhandledMessagePolicy = Drop
-    }
-    in spawnLocal $ start () (statelessInit Infinity) server >> return ()
+  where
+    launch =
+      let server = statelessProcess {
+            apiHandlers = [ handleCall_ (\(Add x y) -> return (x + y)) ]
+          , unhandledMessagePolicy = Drop
+          }
+      in spawnLocal $ serve () (statelessInit Infinity) server
 {% endhighlight %}
 
 What we've changed here is the _handle_ clients use to communicate with the
@@ -202,15 +205,16 @@ to or kill a process without knowing its `ProcessId`:
 {% highlight haskell %}
 class Linkable a where
   -- | Create a /link/ with the supplied object.
-  linkTo :: a -> Process ()
+  linkTo :: Resolvable a => a -> Process ()
 
-class Killable a where
-  killProc :: a -> String -> Process ()
-  exitProc :: (Serializable m) => a -> m -> Process ()
+class Killable p where
+  killProc :: Resolvable p => p -> String -> Process ()
+  exitProc :: (Resolvable p, Serializable m) => p -> m -> Process ()
 {% endhighlight %}
 
-Again, there are default instances of both typeclasses for all [`Resolvable`][rsbl]
-types, so it is enough to provide just that instance for your handles.
+`Killable` comes with a blanket instance for every [`Resolvable`][rsbl] type, so
+you get it for free; `Linkable` you declare yourself, as the echo server below
+does.
 
 ### Using Typed Channels
 
@@ -277,17 +281,19 @@ is a trade-off to be made however. Using the `handleCall` APIs means that our se
 side code can use the fluent server API for state changes, immediate replies and
 so on. None of these features will work with the corollary family of
 `handleRpcChan` functions. Whether or not the difference is merely aesthetic, we
-leave as a question for the reader to determine. The following example demonstrates
-the use of reply channels:
+leave as a question for the reader to determine. `Dispatcher` is only exported
+from `Control.Distributed.Process.ManagedProcess.Internal.Types`. The following
+example demonstrates the use of reply channels:
 
 {% highlight haskell %}
 -- two versions of the same handler, one for calls, one for typed (reply) channels
 
 data State
-data Input
-data Output
+data Input = Input deriving (Typeable, Generic)
+data Output = Output deriving (Typeable, Generic)
 
--- typeable and binary instances ommitted for brevity
+instance Binary Input where
+instance Binary Output where
 
 -- client code
 
@@ -303,7 +309,8 @@ callHandler :: Dispatcher State
 callHandler = handleCall $ \state Input -> reply Output state
 
 chanHandler :: Dispatcher State
-chanHandler = handleRpcChan $ \state port Input -> replyChan port Output >> continue state
+chanHandler = handleRpcChan $ \port state Input ->
+                                replyChan port Output >> continue state
 {% endhighlight %}
 
 ------
@@ -326,19 +333,23 @@ to enable client-server communication, particularly for intra-node traffic, due 
 their internal use of STM (and in particular, its use during selective receives).
 Control channels can provide an alternative to prioritised process definitions, since
 their use of channels ensures that, providing the control channel handler(s) occur
-in the process definition's `apiHandlers` list before the other dispatchers, any
+in the process definition's `externHandlers` list before the other dispatchers, any
 messages received on those channels will be prioritised over other traffic. This is
 the most efficient kind of prioritisation - not much use if you need to prioritise
 _info messages_ of course, but very useful if _control messages_ need to be given
 priority over other inputs.
 
 ------
+> ![Info: ][info] Control channel handlers are built with `handleControlChan`,
+> which yields an `ExternDispatcher` rather than a `Dispatcher`, so they belong in
+> the process definition's `externHandlers` field - not in `apiHandlers` alongside
+> the call/cast handlers. The type system will hold you to this.
+
+------
 > ![Warning: ][alert] Control channels are **not** compatible with prioritised
-> process definitions! The type system does not prevent them from being declared
-> though, since they _are_ represented by a `Dispatcher` and therefore deemded
-> valid entries of the `apiHandlers` field. Upon startup, a prioritised process
-> definition that contains control channel dispatchers in its `apiHandlers` will
-> immediately exit with the reason `ExitOther "IllegalControlChannel"` though.
+> process definitions! Upon startup, a prioritised process definition that
+> contains control channel dispatchers will immediately exit with the reason
+> `ExitOther "IllegalControlChannel"`.
 ------
 
 In order to use a typed channel as an input plane, it is necessary to _leak_ the
@@ -416,9 +427,11 @@ processDefinition :: ProcessId
                   -> Process (ProcessDefinition State)
 processDefinition pid tc cc = do
   liftIO $ atomically $ writeTChan tc $ channelControlPort cc
-  return $ defaultProcess { apiHandlers = [
-                               handleControlChan     cc handleControlMessages
-                             , Restricted.handleCall handleGetStats
+  return $ defaultProcess { externHandlers = [
+                               handleControlChan cc handleControlMessages
+                             ]
+                          , apiHandlers = [
+                               Restricted.handleCall handleGetStats
                              ]
                           , infoHandlers = [ handleInfo handlePost
                                            , handleRaw  handleRawInputs ]
@@ -446,19 +459,32 @@ to fill in the opaque server handle) and how to utilise these in your client cod
 complete with the use of typed reply channels. This code will not use `chanServe`,
 since _that_ API only supports a single control channel - the original purpose behind
 the control channel concept - and instead, we'll create the process loop ourselves,
-using the exported low level `recvLoop` function.
+using the exported low level `recvLoop` function, whose type is
+
+{% highlight haskell %}
+recvLoop :: ProcessDefinition s -> s -> Delay -> Process ExitReason
+{% endhighlight %}
+
+so we hand it the definition, the initial state and a receive timeout directly,
+rather than going through an `InitHandler`.
 
 {% highlight haskell %}
 
+import Control.Distributed.Process
+  ( Process, ProcessId, SendPort, link, liftIO, matchChan, newChan
+  , receiveChan, receiveWait, sendChan, spawnLocal )
+import Control.Distributed.Process.Extras (Linkable(..), Resolvable(..))
+import Control.Distributed.Process.Extras.Time (Delay(Infinity))
+import Control.Distributed.Process.ManagedProcess
+
 type NumRequests = Int
 
-data EchoServer = EchoServer { echoRequests :: ControlPort String
-                             , statRequests :: ControlPort NumRequests
+data EchoServer = EchoServer { echoRequests :: ControlPort EchoRequest
+                             , statRequests :: ControlPort StatsRequest
                              , serverPid    :: ProcessId
                              }
   deriving (Typeable, Generic)
 instance Binary EchoServer where
-instance NFData EchoServer where
 
 instance Resolvable EchoServer where
   resolve = return . Just . serverPid
@@ -471,12 +497,10 @@ instance Linkable EchoServer where
 data EchoRequest = EchoReq !String !(SendPort String)
   deriving (Typeable, Generic)
 instance Binary EchoRequest where
-instance NFData EchoRequest where
 
 data StatsRequest = StatsReq !(SendPort Int)
   deriving (Typeable, Generic)
 instance Binary StatsRequest where
-instance NFData StatsRequest where
 
 -- client code
 
@@ -497,14 +521,15 @@ stats h = do
 demo :: Process ()
 demo = do
   server <- spawnEchoServer
+
   foobar <- echo server "foobar"
-  foobar `shouldBe` equalTo "foobar"
+  liftIO $ print (foobar == "foobar")
 
   baz <- echo server "baz"
-  baz `shouldBe` equalTo baz
+  liftIO $ print (baz == "baz")
 
   count <- stats server
-  count `shouldBe` equalTo (2 :: NumRequests)
+  liftIO $ print (count == (2 :: NumRequests))
 
 -- server code
 
@@ -519,40 +544,39 @@ runEchoServer :: SendPort (ControlPort EchoRequest, ControlPort StatsRequest)
               -> Process ()
 runEchoServer portsChan = do
   echoChan <- newControlChan
-  echoPort <- channelControlPort echoChan
   statChan <- newControlChan
-  statPort <- channelControlPort statChan
-  sendChan portsChan (echoPort, statPort)
-  runProcess (recvLoop $ echoServerDefinition echoChan statChan ) echoServerInit
-
-echoServerInit :: InitHandler () NumRequests
-echoServerInit = return $ InitOk (0 :: Int) Infinity
+  sendChan portsChan (channelControlPort echoChan, channelControlPort statChan)
+  _ <- recvLoop (echoServerDefinition echoChan statChan)
+                (0 :: NumRequests)
+                Infinity
+  return ()
 
 echoServerDefinition :: ControlChannel EchoRequest
                      -> ControlChannel StatsRequest
                      -> ProcessDefinition NumRequests
 echoServerDefinition echoChan statChan =
   defaultProcess {
-      apiHandlers = [ handleControlChan echoChan handleEcho
-                    , handleControlChan statChan handleStats
-                    ]
+      externHandlers = [ handleControlChan echoChan handleEcho
+                       , handleControlChan statChan handleStats
+                       ]
     }
 
-handleEcho :: NumRequests -> EchoRequest -> Process (ProcessAction State)
-handleEcho count (EchoReq req replyTo) = do
-  replyChan replyTo req  -- echo back the string
+handleEcho :: NumRequests -> EchoRequest -> Process (ProcessAction NumRequests)
+handleEcho count (EchoReq req rp) = do
+  replyChan rp req  -- echo back the string
   continue $ count + 1
 
-handleStats :: NumRequests -> StatsRequest -> Process (ProcessAction State)
-handleStats count (StatsReq replyTo) = do
-  replyChan replyTo count
+handleStats :: NumRequests -> StatsRequest -> Process (ProcessAction NumRequests)
+handleStats count (StatsReq rp) = do
+  replyChan rp count
   continue count
 {% endhighlight %}
 
 Although not very useful, this is a working example. Note that the client must
-deal with a `ControlPort` and not the complete `ControlChannel` itself. Also
-note that the server is completely responsible for replying (explicitly) to
-the client using the send ports supplied in the request data.
+deal with a `ControlPort` and not the complete `ControlChannel` itself. Note too
+that `channelControlPort` is a pure function - it just projects the port out of
+the channel - and that the server is completely responsible for replying
+(explicitly) to the client using the send ports supplied in the request data.
 
 ------
 > ![Info: ][info] Combining control channels with opaque handles is another great
